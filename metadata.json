@@ -1,0 +1,8 @@
+{
+  "name": "برنامج تسعير الرؤية المضيئة 13",
+  "description": "برنامج تسعير الرؤية المضيئة 13",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

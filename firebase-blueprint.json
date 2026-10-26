@@ -1,0 +1,62 @@
+{
+  "entities": {
+    "Quotation": {
+      "title": "Quotation",
+      "description": "Unified engineering quotation for Luminous Vision clients",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier of the quotation",
+          "maxLength": 128
+        },
+        "quoteNumber": {
+          "type": "string",
+          "description": "Human readable quote number (e.g. LV-2026-001)",
+          "maxLength": 64
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO date string of quotation creation",
+          "maxLength": 64
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "ISO date string of quotation update",
+          "maxLength": 64
+        },
+        "subtotal": {
+          "type": "number",
+          "description": "Subtotal amount before discount and tax"
+        },
+        "discount": {
+          "type": "number",
+          "description": "Discount amount"
+        },
+        "tax": {
+          "type": "number",
+          "description": "VAT 15% amount"
+        },
+        "grandTotal": {
+          "type": "number",
+          "description": "Total final quotation amount"
+        },
+        "clientInfo": {
+          "type": "object",
+          "description": "Client and project details"
+        },
+        "items": {
+          "type": "array",
+          "description": "Selected quotation engineering items"
+        }
+      },
+      "required": ["id", "quoteNumber", "createdAt", "grandTotal"]
+    }
+  },
+  "firestore": {
+    "/saved_quotations/{quotationId}": {
+      "schema": "Quotation",
+      "description": "Central archive of all company quotations accessible to team members"
+    }
+  }
+}

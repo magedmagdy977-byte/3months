@@ -906,10 +906,17 @@ async function startServer() {
       engineer = rawEngineer;
     }
 
-    if (engineer && !engineer.includes('ماجد')) {
+    const isAuthorizedAdmin =
+      engineer.includes('ماجد') ||
+      engineer.includes('نور') ||
+      engineer.includes('اصال') ||
+      engineer.includes('أصال') ||
+      engineer.includes('إصال');
+
+    if (engineer && !isAuthorizedAdmin) {
       return res.status(403).json({
         success: false,
-        error: 'صلاحية حذف عروض الأسعار من الأرشيف مخصصة حصرياً للمدير العام (م.ماجد)',
+        error: 'صلاحية حذف عروض الأسعار من الأرشيف مخصصة حصرياً للإدارة (م.ماجد / م.نور / م.اصالة)',
       });
     }
 
@@ -930,10 +937,17 @@ async function startServer() {
       engineer = rawEngineer;
     }
 
-    if (engineer && !engineer.includes('ماجد')) {
+    const isAuthorizedAdmin =
+      engineer.includes('ماجد') ||
+      engineer.includes('نور') ||
+      engineer.includes('اصال') ||
+      engineer.includes('أصال') ||
+      engineer.includes('إصال');
+
+    if (engineer && !isAuthorizedAdmin) {
       return res.status(403).json({
         success: false,
-        error: 'صلاحية حذف عروض الأسعار من الأرشيف مخصصة حصرياً للمدير العام (م.ماجد)',
+        error: 'صلاحية حذف عروض الأسعار من الأرشيف مخصصة حصرياً للإدارة (م.ماجد / م.نور / م.اصالة)',
       });
     }
 

@@ -11,6 +11,7 @@ const STORAGE_KEY_AUTHORIZED_USERS = 'luminous_authorized_users_v2';
 export const DEFAULT_AUTHORIZED_USERS = [
   'م.ماجد',
   'م.نور',
+  'م.اصالة',
   'م.عبدالقادر',
   'م.يسرا',
   'م.يوسف',
@@ -48,6 +49,18 @@ let cachedAuthorizedUsers: string[] = (() => {
             parsed.splice(majedIdx + 1, 0, 'م.نور');
           } else {
             parsed.unshift('م.نور');
+          }
+          changed = true;
+        }
+        if (!parsed.some((u: string) => u.includes('اصال') || u.includes('أصال'))) {
+          const nourIdx = parsed.findIndex((u: string) => u.includes('نور'));
+          const majedIdx = parsed.findIndex((u: string) => u.includes('ماجد'));
+          if (nourIdx !== -1) {
+            parsed.splice(nourIdx + 1, 0, 'م.اصالة');
+          } else if (majedIdx !== -1) {
+            parsed.splice(majedIdx + 1, 0, 'م.اصالة');
+          } else {
+            parsed.unshift('م.اصالة');
           }
           changed = true;
         }
@@ -115,6 +128,18 @@ export function initPasscodeListener(
                   }
                   changed = true;
                 }
+                if (!list.some((u: string) => u.includes('اصال') || u.includes('أصال'))) {
+                  const nourIdx = list.findIndex((u: string) => u.includes('نور'));
+                  const majedIdx = list.findIndex((u: string) => u.includes('ماجد'));
+                  if (nourIdx !== -1) {
+                    list.splice(nourIdx + 1, 0, 'م.اصالة');
+                  } else if (majedIdx !== -1) {
+                    list.splice(majedIdx + 1, 0, 'م.اصالة');
+                  } else {
+                    list.unshift('م.اصالة');
+                  }
+                  changed = true;
+                }
                 if (!list.includes('م.فادي')) {
                   const idx = list.indexOf('م.لحد ما يجي');
                   if (idx !== -1) {
@@ -169,16 +194,19 @@ function normalizeArabic(str: string): string {
 }
 
 /**
- * Checks if a user is an admin (م.ماجد أو م.نور)
+ * Checks if a user is an admin (م.ماجد أو م.نور أو م.اصالة)
  */
 export function isUserPrimaryAdmin(userName?: string): boolean {
   if (!userName) return false;
   const clean = userName.trim();
+  const normalized = normalizeArabic(clean);
   return (
     clean === 'م.ماجد' ||
     clean.includes('ماجد') ||
     clean === 'م.نور' ||
-    clean.includes('نور')
+    clean.includes('نور') ||
+    clean === 'م.اصالة' ||
+    normalized.includes('اصال')
   );
 }
 
@@ -212,7 +240,7 @@ export function verifyUserLogin(
     return {
       success: false,
       errorReason: 'unauthorized_user',
-      message: `المستخدم "${inputName}" غير مسجل ضمن قائمة فريق العمل المصرح له. يرجى اختيار مهندس معتمد أو مراجعة الإدارة (م.ماجد / م.نور) لإضافتك.`,
+      message: `المستخدم "${inputName}" غير مسجل ضمن قائمة فريق العمل المصرح له. يرجى اختيار مهندس معتمد أو مراجعة الإدارة (م.ماجد / م.نور / م.اصالة) لإضافتك.`,
     };
   }
 
@@ -270,7 +298,7 @@ export function verifyOfficePasscode(inputCode: string): boolean {
  */
 export async function updateOfficePasscode(newCode: string, requestingUserName?: string): Promise<void> {
   if (requestingUserName && !isUserPrimaryAdmin(requestingUserName)) {
-    throw new Error('عذراً! صلاحية تغيير رمز المرور السري مقتصرة حصرياً على الإدارة (م.ماجد / م.نور).');
+    throw new Error('عذراً! صلاحية تغيير رمز المرور السري مقتصرة حصرياً على الإدارة (م.ماجد / م.نور / م.اصالة).');
   }
 
   const clean = newCode.trim();
@@ -310,7 +338,7 @@ export async function updateOfficePasscode(newCode: string, requestingUserName?:
  */
 export async function addAuthorizedUser(name: string, requestingUserName?: string): Promise<string[]> {
   if (requestingUserName && !isUserPrimaryAdmin(requestingUserName)) {
-    throw new Error('عذراً! صلاحية إضافة مهندسين مصرح لهم مقتصرة حصرياً على الإدارة (م.ماجد / م.نور).');
+    throw new Error('عذراً! صلاحية إضافة مهندسين مصرح لهم مقتصرة حصرياً على الإدارة (م.ماجد / م.نور / م.اصالة).');
   }
 
   const cleanName = name.trim();
@@ -349,17 +377,12 @@ export async function addAuthorizedUser(name: string, requestingUserName?: strin
  */
 export async function removeAuthorizedUser(name: string, requestingUserName?: string): Promise<string[]> {
   if (requestingUserName && !isUserPrimaryAdmin(requestingUserName)) {
-    throw new Error('عذراً! صلاحية إلغاء وحذف المهندسين مقتصرة حصرياً على الإدارة (م.ماجد / م.نور).');
+    throw new Error('عذراً! صلاحية إلغاء وحذف المهندسين مقتصرة حصرياً على الإدارة (م.ماجد / م.نور / م.اصالة).');
   }
 
   const cleanName = name.trim();
-  if (
-    cleanName === 'م.ماجد' ||
-    cleanName.includes('ماجد') ||
-    cleanName === 'م.نور' ||
-    cleanName.includes('نور')
-  ) {
-    throw new Error('لا يمكن حذف حساب المسؤول الرئيسي (م.ماجد / م.نور)');
+  if (isUserPrimaryAdmin(cleanName)) {
+    throw new Error('لا يمكن حذف حساب المسؤول الرئيسي (م.ماجد / م.نور / م.اصالة)');
   }
 
   cachedAuthorizedUsers = cachedAuthorizedUsers.filter((u) => u !== cleanName);
@@ -393,6 +416,18 @@ export function getAuthorizedUsersList(): string[] {
       cachedAuthorizedUsers.splice(majedIdx + 1, 0, 'م.نور');
     } else {
       cachedAuthorizedUsers.unshift('م.نور');
+    }
+    changed = true;
+  }
+  if (!cachedAuthorizedUsers.some((u) => u.includes('اصال') || u.includes('أصال'))) {
+    const nourIdx = cachedAuthorizedUsers.findIndex((u) => u.includes('نور'));
+    const majedIdx = cachedAuthorizedUsers.findIndex((u) => u.includes('ماجد'));
+    if (nourIdx !== -1) {
+      cachedAuthorizedUsers.splice(nourIdx + 1, 0, 'م.اصالة');
+    } else if (majedIdx !== -1) {
+      cachedAuthorizedUsers.splice(majedIdx + 1, 0, 'م.اصالة');
+    } else {
+      cachedAuthorizedUsers.unshift('م.اصالة');
     }
     changed = true;
   }

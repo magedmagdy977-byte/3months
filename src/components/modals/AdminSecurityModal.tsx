@@ -89,7 +89,7 @@ export const AdminSecurityModal: React.FC<AdminSecurityModalProps> = ({
           </div>
           <h3 className="text-base font-black text-stone-900">صلاحية الوصول مقيدة</h3>
           <p className="text-xs text-stone-600 leading-relaxed">
-            لوحة إدارة الأمان والتحكم بالمهندسين وتغيير الرمز السري مخصصة حصرياً للإدارة (<strong>م.ماجد أو م.نور</strong>). ليس لديك صلاحية الدخول لهذه اللوحة.
+            لوحة إدارة الأمان والتحكم بالمهندسين وتغيير الرمز السري مخصصة حصرياً للإدارة (<strong>م.ماجد / م.نور / م.اصالة</strong>). ليس لديك صلاحية الدخول لهذه اللوحة.
           </p>
           <button
             type="button"

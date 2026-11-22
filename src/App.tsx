@@ -631,7 +631,7 @@ export default function App() {
 
   const handleDeleteQuotation = async (id: string) => {
     if (!currentUser || !isUserPrimaryAdmin(currentUser.engineerName)) {
-      showToast('عذراً! صلاحية حذف عروض الأسعار مخصصة حصرياً للإدارة (م.ماجد / م.نور)');
+      showToast('عذراً! صلاحية حذف عروض الأسعار مخصصة حصرياً للإدارة (م.ماجد / م.نور / م.اصالة)');
       return;
     }
     const updated = await deleteQuotationPermanently(id, savedQuotations, currentUser.engineerName);
@@ -641,7 +641,7 @@ export default function App() {
 
   const handleDeleteMultipleQuotations = async (ids: string[]) => {
     if (!currentUser || !isUserPrimaryAdmin(currentUser.engineerName)) {
-      showToast('عذراً! صلاحية حذف عروض الأسعار مخصصة حصرياً للإدارة (م.ماجد / م.نور)');
+      showToast('عذراً! صلاحية حذف عروض الأسعار مخصصة حصرياً للإدارة (م.ماجد / م.نور / م.اصالة)');
       return;
     }
     if (!ids || ids.length === 0) return;
@@ -720,7 +720,7 @@ export default function App() {
         isCloudConnected={isCloudConnected}
         session={currentUser}
         onOpenSecurity={() => {
-          if (currentUser?.engineerName?.includes('ماجد')) {
+          if (isUserPrimaryAdmin(currentUser?.engineerName)) {
             setIsSecurityOpen(true);
           }
         }}

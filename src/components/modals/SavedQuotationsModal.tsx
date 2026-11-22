@@ -163,7 +163,7 @@ export const SavedQuotationsModal: React.FC<SavedQuotationsModalProps> = ({
             {isAdmin ? (
               <>
                 <span className="font-bold text-amber-900 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-md">
-                  👑 صلاحية الإدارة (م.ماجد / م.نور)
+                  👑 صلاحية الإدارة (م.ماجد / م.نور / م.اصالة)
                 </span>
                 <span className="font-medium text-stone-700">
                   يمكنك تحديد عروض أسعار متعددة أو فردية وحذفها دفعة واحدة من الأرشيف.
@@ -175,7 +175,7 @@ export const SavedQuotationsModal: React.FC<SavedQuotationsModalProps> = ({
                   👥 أرشيف مفتوح لكافة المهندسين
                 </span>
                 <span className="font-medium text-stone-700">
-                  يمكنك استرجاع وتصفح وطباعة أي عرض سعر • صلاحية الحذف مخصصة حصرياً للإدارة (م.ماجد / م.نور).
+                  يمكنك استرجاع وتصفح وطباعة أي عرض سعر • صلاحية الحذف مخصصة حصرياً للإدارة (م.ماجد / م.نور / م.اصالة).
                 </span>
               </>
             )}

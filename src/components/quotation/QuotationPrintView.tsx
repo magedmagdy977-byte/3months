@@ -341,7 +341,7 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({
               }`}
             >
               <Sparkles className="w-3.5 h-3.5" />
-              <span>التسعير المبسط</span>
+              <span>برنامج الاصالة المبسط</span>
             </button>
 
             <button

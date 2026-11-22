@@ -299,7 +299,7 @@ export default function App() {
     setOutputMode((prev) => {
       const next = prev === 'simplified' ? 'master' : 'simplified';
       if (next === 'simplified') {
-        showToast('تم تفعيل «برنامج التسعير المبسط» — ستصدر مخرجات عروض الأسعار بالتصميم البصري المبسط');
+        showToast('تم تفعيل «برنامج الاصالة المبسط» — ستصدر مخرجات عروض الأسعار بالتصميم البصري المبسط');
       } else {
         showToast('تم التحويل إلى «النموذج الموحد الرسمي»');
       }

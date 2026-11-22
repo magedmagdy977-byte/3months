@@ -1963,7 +1963,7 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
                   }`}
                 >
                   <LayoutTemplate className="w-3.5 h-3.5 text-[#F0A429] shrink-0" />
-                  <span>برنامج التسعير المبسط</span>
+                  <span>برنامج الاصالة المبسط</span>
                 </button>
               </div>
             )}
@@ -1976,7 +1976,7 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
             >
               <Printer className="w-4 h-4 text-stone-950 flex-shrink-0" />
               <span>
-                {isSimplifiedMode ? 'معاينة وطباعة التسعير المبسط' : 'معاينة وطباعة النموذج الموحد'}
+                {isSimplifiedMode ? 'معاينة وطباعة برنامج الاصالة المبسط' : 'معاينة وطباعة النموذج الموحد'}
               </span>
               <span className="bg-stone-950/15 text-stone-900 border border-stone-950/20 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 mr-1">
                 <Cloud className="w-3 h-3 text-stone-950" />

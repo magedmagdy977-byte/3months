@@ -126,8 +126,8 @@ export const Header: React.FC<HeaderProps> = ({
               }`}
               title={
                 isSimplifiedMode
-                  ? 'برنامج التسعير المبسط مفعّل حالياً — اضغط للعودة إلى النموذج الموحد الرسمي'
-                  : 'تفعيل برنامج التسعير المبسط لتحويل إخراج عروض الأسعار إلى التصميم البصري المبسط'
+                  ? 'برنامج الاصالة المبسط مفعّل حالياً — اضغط للعودة إلى النموذج الموحد الرسمي'
+                  : 'تفعيل برنامج الاصالة المبسط لتحويل إخراج عروض الأسعار إلى التصميم البصري المبسط'
               }
             >
               {isSimplifiedMode ? (
@@ -135,7 +135,7 @@ export const Header: React.FC<HeaderProps> = ({
               ) : (
                 <LayoutTemplate className="w-4 h-4 text-[#F0A429] shrink-0" />
               )}
-              <span>برنامج التسعير المبسط</span>
+              <span>برنامج الاصالة المبسط</span>
               {isSimplifiedMode && (
                 <span className="text-[10px] font-black bg-[#F0A429] text-[#1D2B36] px-1.5 py-0.5 rounded-md">
                   مفعّل

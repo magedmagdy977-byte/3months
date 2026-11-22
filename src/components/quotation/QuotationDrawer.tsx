@@ -37,6 +37,7 @@ import {
   Plus,
   Edit3,
   Check,
+  LayoutTemplate,
 } from 'lucide-react';
 import { createAndShareGoogleDocQuotation } from '../../lib/googleDocsExport';
 import { downloadWordDocument } from '../../lib/wordExport';
@@ -56,6 +57,8 @@ interface QuotationDrawerProps {
   onSaveQuote: () => void;
   onOpenAiAssistant?: () => void;
   onNewQuotation?: () => void;
+  isSimplifiedMode?: boolean;
+  onToggleSimplifiedMode?: () => void;
 }
 
 export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
@@ -71,6 +74,8 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
   onSaveQuote,
   onOpenAiAssistant,
   onNewQuotation,
+  isSimplifiedMode = false,
+  onToggleSimplifiedMode,
 }) => {
   const [activeTab, setActiveTab] = useState<'items' | 'project' | 'scope' | 'terms'>('items');
 
@@ -1930,14 +1935,49 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
           </div>
 
           <div className="space-y-2 pt-2">
+            {onToggleSimplifiedMode && (
+              <div className="bg-stone-800/90 p-1 rounded-xl border border-stone-700/80 grid grid-cols-2 gap-1 text-[11px] font-bold">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isSimplifiedMode) onToggleSimplifiedMode();
+                  }}
+                  className={`py-1.5 px-2 rounded-lg flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                    !isSimplifiedMode
+                      ? 'bg-amber-500 text-stone-950 font-black shadow-xs'
+                      : 'text-stone-300 hover:text-white'
+                  }`}
+                >
+                  <FileText className="w-3.5 h-3.5 shrink-0" />
+                  <span>النموذج الموحد</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!isSimplifiedMode) onToggleSimplifiedMode();
+                  }}
+                  className={`py-1.5 px-2 rounded-lg flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                    isSimplifiedMode
+                      ? 'bg-[#2C3E4C] text-white border border-[#F0A429] font-black shadow-xs'
+                      : 'text-stone-300 hover:text-white'
+                  }`}
+                >
+                  <LayoutTemplate className="w-3.5 h-3.5 text-[#F0A429] shrink-0" />
+                  <span>برنامج التسعير المبسط</span>
+                </button>
+              </div>
+            )}
+
             <button
               type="button"
               onClick={onPrint}
               disabled={items.length === 0}
-              className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-50 active:scale-[0.98] text-stone-950 font-black py-3 px-3 rounded-xl text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg transition"
+              className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-50 active:scale-[0.98] text-stone-950 font-black py-3 px-3 rounded-xl text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg transition cursor-pointer"
             >
               <Printer className="w-4 h-4 text-stone-950 flex-shrink-0" />
-              <span>معاينة وطباعة النموذج الموحد</span>
+              <span>
+                {isSimplifiedMode ? 'معاينة وطباعة التسعير المبسط' : 'معاينة وطباعة النموذج الموحد'}
+              </span>
               <span className="bg-stone-950/15 text-stone-900 border border-stone-950/20 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 mr-1">
                 <Cloud className="w-3 h-3 text-stone-950" />
                 حفظ سحابي تلقائي

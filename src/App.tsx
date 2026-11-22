@@ -66,9 +66,18 @@ import { CheckCircle, AlertCircle, ShoppingBag, Sparkles, FileText, ArrowLeft, P
 const STORAGE_KEY_ITEMS = 'alroaya_quote_items_v1';
 const STORAGE_KEY_CLIENT = 'alroaya_client_info_v1';
 const STORAGE_KEY_SAVED = 'alroaya_saved_quotes_v1';
+const STORAGE_KEY_OUTPUT_MODE = 'alroaya_output_mode_v1';
 
 export default function App() {
   const [activeDept, setActiveDept] = useState<DepartmentId>('design');
+  const [outputMode, setOutputMode] = useState<'master' | 'simplified'>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_OUTPUT_MODE);
+      return saved === 'simplified' ? 'simplified' : 'master';
+    } catch {
+      return 'master';
+    }
+  });
   const [cartItems, setCartItems] = useState<QuotationItem[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_ITEMS);
@@ -271,11 +280,31 @@ export default function App() {
     }
   }, [savedQuotations]);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY_OUTPUT_MODE, outputMode);
+    } catch {
+      // ignore
+    }
+  }, [outputMode]);
+
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => {
       setToastMessage(null);
     }, 3500);
+  };
+
+  const handleToggleSimplifiedMode = () => {
+    setOutputMode((prev) => {
+      const next = prev === 'simplified' ? 'master' : 'simplified';
+      if (next === 'simplified') {
+        showToast('تم تفعيل «برنامج التسعير المبسط» — ستصدر مخرجات عروض الأسعار بالتصميم البصري المبسط');
+      } else {
+        showToast('تم التحويل إلى «النموذج الموحد الرسمي»');
+      }
+      return next;
+    });
   };
 
   const isResettingRef = React.useRef<boolean>(false);
@@ -656,6 +685,12 @@ export default function App() {
         items={printItems || cartItems}
         clientInfo={printClientInfo || clientInfo}
         onBack={handleBackFromPrint}
+        initialViewMode={outputMode}
+        onViewModeChange={(mode) => {
+          if (mode === 'simplified' || mode === 'master') {
+            setOutputMode(mode);
+          }
+        }}
         onUpdateClientInfo={(updated) => {
           handleUpdateClientInfo(updated);
           setPrintClientInfo((prev) => (prev ? { ...prev, ...updated } : prev));
@@ -698,6 +733,8 @@ export default function App() {
         onOpenExport={() => setIsExportOpen(true)}
         onOpenAiAssistant={() => setIsAiAssistantOpen(true)}
         onNewQuotation={handleInstantResetNewQuotation}
+        isSimplifiedMode={outputMode === 'simplified'}
+        onToggleSimplifiedMode={handleToggleSimplifiedMode}
       />
 
       {/* Department Navigation Tabs */}
@@ -797,6 +834,8 @@ export default function App() {
         onSaveQuote={() => handleSaveQuotation()}
         onOpenAiAssistant={() => setIsAiAssistantOpen(true)}
         onNewQuotation={handleInstantResetNewQuotation}
+        isSimplifiedMode={outputMode === 'simplified'}
+        onToggleSimplifiedMode={handleToggleSimplifiedMode}
       />
 
       {/* Gemini AI Deed & Project Data Assistant Modal */}

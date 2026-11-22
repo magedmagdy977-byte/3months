@@ -35,6 +35,9 @@ import { createAndShareGoogleDocQuotation } from '../../lib/googleDocsExport';
 import { downloadWordDocument } from '../../lib/wordExport';
 import { GoogleDocExportModal } from '../modals/GoogleDocExportModal';
 import { EditPaymentMilestonesModal } from '../modals/EditPaymentMilestonesModal';
+import { SimplifiedQuotationView } from './SimplifiedQuotationView';
+
+export type QuotationViewMode = 'master' | 'simplified' | 'compact';
 
 interface QuotationPrintViewProps {
   items: QuotationItem[];
@@ -42,6 +45,8 @@ interface QuotationPrintViewProps {
   onBack: () => void;
   onPrintComplete?: () => void;
   onUpdateClientInfo?: (info: Partial<ClientInfo>) => void;
+  initialViewMode?: QuotationViewMode;
+  onViewModeChange?: (mode: QuotationViewMode) => void;
 }
 
 const cleanEngineerName = (name?: string) => {
@@ -96,8 +101,22 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({
   onBack,
   onPrintComplete,
   onUpdateClientInfo,
+  initialViewMode = 'master',
+  onViewModeChange,
 }) => {
-  const [viewMode, setViewMode] = useState<'master' | 'compact'>('master');
+  const [viewMode, setViewMode] = useState<QuotationViewMode>(initialViewMode);
+
+  useEffect(() => {
+    setViewMode(initialViewMode);
+  }, [initialViewMode]);
+
+  const handleSelectViewMode = (mode: QuotationViewMode) => {
+    setViewMode(mode);
+    if (onViewModeChange) {
+      onViewModeChange(mode);
+    }
+  };
+
   const [copied, setCopied] = useState<boolean>(false);
   const [printScaleMode, setPrintScaleMode] = useState<'auto' | '100' | '95' | '90' | '85'>('auto');
   const [isEditMilestonesOpen, setIsEditMilestonesOpen] = useState<boolean>(false);
@@ -314,8 +333,21 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({
           <div className="bg-stone-800 p-1 rounded-xl flex items-center gap-1 text-xs">
             <button
               type="button"
-              onClick={() => setViewMode('master')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 ${
+              onClick={() => handleSelectViewMode('simplified')}
+              className={`px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                viewMode === 'simplified'
+                  ? 'bg-[#F0A429] text-[#1D2B36] shadow-xs'
+                  : 'text-stone-300 hover:text-white'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>التسعير المبسط</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleSelectViewMode('master')}
+              className={`px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
                 viewMode === 'master'
                   ? 'bg-amber-500 text-stone-950 shadow-xs'
                   : 'text-stone-300 hover:text-white'
@@ -327,8 +359,8 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({
 
             <button
               type="button"
-              onClick={() => setViewMode('compact')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 ${
+              onClick={() => handleSelectViewMode('compact')}
+              className={`px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
                 viewMode === 'compact'
                   ? 'bg-amber-500 text-stone-950 shadow-xs'
                   : 'text-stone-300 hover:text-white'
@@ -415,11 +447,26 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({
       {/* Official Printable Document Container (A4 Single-Page Harmonious Layout) */}
       <div
         ref={printContainerRef}
-        className="print-document-container max-w-[210mm] min-h-[292mm] print:max-w-none print:w-full print:min-h-[279mm] print:max-h-[282mm] mx-auto bg-white p-5 sm:p-7 shadow-2xl rounded-2xl print:rounded-none print:shadow-none print:!p-0 print:!m-0 border border-stone-200 print:border-none text-stone-900 text-right font-sans flex flex-col justify-between"
+        className={`print-document-container max-w-[210mm] min-h-[292mm] print:max-w-none print:w-full print:min-h-[279mm] print:max-h-[282mm] mx-auto bg-white shadow-2xl rounded-2xl print:rounded-none print:shadow-none print:!p-0 print:!m-0 border border-stone-200 print:border-none text-stone-900 text-right font-sans flex flex-col justify-between overflow-hidden ${
+          viewMode === 'simplified' ? 'p-0' : 'p-5 sm:p-7'
+        }`}
       >
-        {/* =========================================================================
-            HEADER & LETTERHEAD
-           ========================================================================= */}
+        {viewMode === 'simplified' ? (
+          <SimplifiedQuotationView
+            items={items}
+            clientInfo={clientInfo}
+            subtotal={subtotal}
+            discountAmount={discountAmount}
+            taxAmount={taxAmount}
+            grandTotal={grandTotal}
+            milestones={milestones}
+            onEditMilestones={() => setIsEditMilestonesOpen(true)}
+          />
+        ) : (
+          <>
+            {/* =========================================================================
+                HEADER & LETTERHEAD
+               ========================================================================= */}
         <div
           className={`border-b-2 border-stone-900 flex flex-row items-center justify-between gap-4 shrink-0 ${
             density === 'comfort'
@@ -1423,6 +1470,8 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({
               </div>
             </div>
           </div>
+        )}
+          </>
         )}
       </div>
 

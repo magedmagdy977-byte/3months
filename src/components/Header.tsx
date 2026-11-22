@@ -13,6 +13,8 @@ import {
   LogOut,
   Sparkles,
   PlusCircle,
+  LayoutTemplate,
+  CheckCircle2,
 } from 'lucide-react';
 import { formatSAR } from '../utils/formatters';
 import { LuminousLogo } from './LuminousLogo';
@@ -35,6 +37,8 @@ interface HeaderProps {
   onOpenExport: () => void;
   onOpenAiAssistant?: () => void;
   onNewQuotation?: () => void;
+  isSimplifiedMode?: boolean;
+  onToggleSimplifiedMode?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -53,6 +57,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenExport,
   onOpenAiAssistant,
   onNewQuotation,
+  isSimplifiedMode = false,
+  onToggleSimplifiedMode,
 }) => {
   const isSuperAdmin = session && isUserPrimaryAdmin(session.engineerName);
   return (
@@ -107,7 +113,37 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+          {/* Simplified Pricing Output Mode Toggle Button */}
+          {onToggleSimplifiedMode && (
+            <button
+              type="button"
+              onClick={onToggleSimplifiedMode}
+              className={`inline-flex items-center gap-1.5 text-xs font-black px-3 py-2 rounded-xl transition cursor-pointer shrink-0 whitespace-nowrap ${
+                isSimplifiedMode
+                  ? 'bg-[#2C3E4C] text-white border-2 border-[#F0A429] shadow-md hover:bg-[#34495A]'
+                  : 'bg-stone-800 hover:bg-stone-700 text-[#F5B43C] border border-[#F0A429]/50 hover:border-[#F0A429]'
+              }`}
+              title={
+                isSimplifiedMode
+                  ? 'برنامج التسعير المبسط مفعّل حالياً — اضغط للعودة إلى النموذج الموحد الرسمي'
+                  : 'تفعيل برنامج التسعير المبسط لتحويل إخراج عروض الأسعار إلى التصميم البصري المبسط'
+              }
+            >
+              {isSimplifiedMode ? (
+                <CheckCircle2 className="w-4 h-4 text-[#F0A429] shrink-0" />
+              ) : (
+                <LayoutTemplate className="w-4 h-4 text-[#F0A429] shrink-0" />
+              )}
+              <span>برنامج التسعير المبسط</span>
+              {isSimplifiedMode && (
+                <span className="text-[10px] font-black bg-[#F0A429] text-[#1D2B36] px-1.5 py-0.5 rounded-md">
+                  مفعّل
+                </span>
+              )}
+            </button>
+          )}
+
           {session && (
             isSuperAdmin ? (
               <div className="flex items-center gap-1.5 shrink-0">

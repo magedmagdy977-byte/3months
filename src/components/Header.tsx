@@ -15,6 +15,7 @@ import {
   PlusCircle,
   LayoutTemplate,
   CheckCircle2,
+  FileSignature,
 } from 'lucide-react';
 import { formatSAR } from '../utils/formatters';
 import { LuminousLogo } from './LuminousLogo';
@@ -39,6 +40,8 @@ interface HeaderProps {
   onNewQuotation?: () => void;
   isSimplifiedMode?: boolean;
   onToggleSimplifiedMode?: () => void;
+  isContractAttached?: boolean;
+  onOpenContractEditor?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -59,6 +62,8 @@ export const Header: React.FC<HeaderProps> = ({
   onNewQuotation,
   isSimplifiedMode = false,
   onToggleSimplifiedMode,
+  isContractAttached = false,
+  onOpenContractEditor,
 }) => {
   const isSuperAdmin = session && isUserPrimaryAdmin(session.engineerName);
   return (
@@ -114,6 +119,36 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Action Controls */}
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+          {/* Smart Contract Attachment & Editor Trigger */}
+          {onOpenContractEditor && (
+            <button
+              type="button"
+              onClick={onOpenContractEditor}
+              className={`inline-flex items-center gap-1.5 text-xs font-black px-3 py-2 rounded-xl transition cursor-pointer shrink-0 whitespace-nowrap ${
+                isContractAttached
+                  ? 'bg-[#3a3c3e] text-[#f3ebd8] border-2 border-[#a6926b] shadow-md hover:bg-[#494c4f]'
+                  : 'bg-stone-800 hover:bg-stone-700 text-[#e6d7b9] border border-[#a6926b]/50 hover:border-[#a6926b]'
+              }`}
+              title={
+                isContractAttached
+                  ? 'العقد الذكي مرفق حالياً مع عرض السعر — اضغط لتعديل بنود العقد أو تبديل القالب'
+                  : 'إرفاق وتعديل العقد الذكي مع عرض السعر لجميع الأقسام والخدمات'
+              }
+            >
+              {isContractAttached ? (
+                <CheckCircle2 className="w-4 h-4 text-[#d4c3a3] shrink-0" />
+              ) : (
+                <FileSignature className="w-4 h-4 text-[#d4c3a3] shrink-0" />
+              )}
+              <span>العقد الذكي</span>
+              {isContractAttached && (
+                <span className="text-[10px] font-black bg-[#a6926b] text-white px-1.5 py-0.5 rounded-md">
+                  مرفق
+                </span>
+              )}
+            </button>
+          )}
+
           {/* Simplified Pricing Output Mode Toggle Button */}
           {onToggleSimplifiedMode && (
             <button

@@ -68,9 +68,29 @@
     overflow: hidden !important;
     page-break-inside: avoid !important;
     break-inside: avoid !important;
+    zoom: var(--print-scale, 1);
+  }
+  .print-document-container.single-page-only {
     page-break-after: avoid !important;
     break-after: avoid !important;
-    zoom: var(--print-scale, 1);
+  }
+  .print-page-break-before {
+    page-break-before: always !important;
+    break-before: page !important;
+  }
+  .print-contract-container {
+    padding: 0 !important;
+    margin: 0 auto !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    display: block !important;
   }
   /* Prevent any trailing margin from producing a blank page */
   *:last-child {
@@ -78,8 +98,11 @@
   }
   .page-break-avoid,
   .break-inside-avoid,
-  tr,
-  section {
+  tr {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+  .print-document-container section {
     break-inside: avoid !important;
     page-break-inside: avoid !important;
   }

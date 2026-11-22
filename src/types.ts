@@ -157,6 +157,92 @@ export interface ClientInfo {
   supervisionScopeCustomTitle?: string;
   supervisionScopeCustomDescription?: string;
   supervisionScopeCustomBullets?: string[];
+
+  // العقد الذكي القابل للتعديل والمرفق مع عرض السعر
+  contractData?: ContractData;
+}
+
+export type ContractTemplateKind =
+  | 'design_license'
+  | 'design_plans'
+  | 'design_as_built'
+  | 'supervision'
+  | 'decor'
+  | 'survey'
+  | 'civil_defense'
+  | 'execution'
+  | 'combined';
+
+export type DocumentOutputBundle = 'quote_only' | 'quote_and_contract' | 'contract_only';
+
+export interface ContractScopeSubgroup {
+  id: string;
+  title: string;
+  subtitle?: string;
+  items: string[];
+  layout?: 'list' | 'two_column';
+}
+
+export interface ContractTimelineRow {
+  id: string;
+  stage: string;
+  workTitle: string;
+  details: string;
+  duration: string;
+}
+
+export interface ContractData {
+  enabled: boolean;
+  templateKind: ContractTemplateKind;
+  autoSynced: boolean;
+  contractTitle: string;
+  contractSubtitle: string;
+  contractNumber: string;
+  signingCity: string;
+  signingDayName: string;
+  signingDate: string;
+  // الطرف الأول (المالك)
+  firstPartyName: string;
+  firstPartyId: string;
+  firstPartyAddress: string;
+  firstPartyPhone: string;
+  firstPartyEmail: string;
+  propertyDescription: string;
+  propertyRealEstateNumber: string;
+  // الطرف الثاني (الاستشاري)
+  secondPartyText: string;
+  // المقدمة
+  preambleText: string;
+  // الوصف العام للمشروع (اختياري - يظهر في عقود الإشراف والتنفيذ)
+  showProjectOverview: boolean;
+  projectOverviewText: string;
+  // نطاق أعمال والتزامات الاستشاري
+  consultantScopeTitle: string;
+  scopeGroups: ContractScopeSubgroup[];
+  // مراحل استلامات الأعمال (للإشراف أو العقود المشتركة)
+  showSupervisionStages: boolean;
+  supervisionStagesTitle: string;
+  supervisionMaxVisitsText: string;
+  supervisionExtraVisitFeeText: string;
+  supervisionStages: string[];
+  // التزامات المالك
+  ownerObligations: string[];
+  // المدة الزمنية لإنهاء مراحل المشروع
+  showTimelineTable: boolean;
+  timelineNotes: string[];
+  timelineRows: ContractTimelineRow[];
+  timelineTotalLabel: string;
+  timelineTotalDuration: string;
+  // شروط عامة
+  generalTerms: string[];
+  // حقوق الملكية الفكرية والفنية
+  showIpRights: boolean;
+  ipRights: string[];
+  // الأسعار وطريقة الدفع
+  pricingIntroText: string;
+  paymentMethodNote: string;
+  closingText: string;
+  showCompanySeal: boolean;
 }
 
 export type RiyadhLocationZone = 'north_center' | 'east_west' | 'south' | 'none';

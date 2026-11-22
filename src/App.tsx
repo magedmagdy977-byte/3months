@@ -5,6 +5,7 @@ import {
   ClientInfo,
   SavedQuotation,
   UserSession,
+  ContractData,
 } from './types';
 import { Header } from './components/Header';
 import { DepartmentNav } from './components/DepartmentNav';
@@ -23,6 +24,8 @@ import { ExportAndInstallModal } from './components/ExportAndInstallModal';
 import { GeminiDeedAssistantModal } from './components/ai/GeminiDeedAssistantModal';
 import { PrivatePortalLogin } from './components/auth/PrivatePortalLogin';
 import { AdminSecurityModal } from './components/modals/AdminSecurityModal';
+import { ContractEditorModal } from './components/contract/ContractEditorModal';
+import { buildSmartContract } from './data/smartContractEngine';
 import {
   getSavedSession,
   clearSession,
@@ -201,6 +204,7 @@ export default function App() {
   const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
   const [isExportOpen, setIsExportOpen] = useState<boolean>(false);
   const [isAiAssistantOpen, setIsAiAssistantOpen] = useState<boolean>(false);
+  const [isContractEditorOpen, setIsContractEditorOpen] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [loadedQuoteId, setLoadedQuoteId] = useState<string | null>(null);
 
@@ -310,6 +314,41 @@ export default function App() {
   const isResettingRef = React.useRef<boolean>(false);
   const isSavingRef = React.useRef<boolean>(false);
 
+  const sanitizeContractData = (contract: ContractData): ContractData => ({
+    ...contract,
+    scopeGroups: contract.scopeGroups.map((g) => ({
+      ...g,
+      subtitle: g.subtitle || '',
+    })),
+  });
+
+  const handleSaveContractData = (contractData: ContractData) => {
+    const sanitized = sanitizeContractData(contractData);
+    setClientInfo((prev) => ({
+      ...prev,
+      contractData: sanitized,
+    }));
+    showToast(
+      sanitized.enabled
+        ? `تم حفظ وتفعيل العقد الذكي (${sanitized.contractTitle}) وإرفاقه مع عرض السعر`
+        : 'تم حفظ تعديلات العقد (غير مرفق حالياً مع عرض السعر)'
+    );
+  };
+
+  const handleSaveContractAndPreview = async (contractData: ContractData) => {
+    const sanitized = sanitizeContractData({ ...contractData, enabled: true });
+    const updatedClient: ClientInfo = {
+      ...clientInfo,
+      contractData: sanitized,
+    };
+    setClientInfo(updatedClient);
+    setIsContractEditorOpen(false);
+    setIsCartOpen(false);
+    setPrintClientInfo(updatedClient);
+    setPrintItems([...cartItems]);
+    setIsPrintMode(true);
+  };
+
   const handleAddItem = (item: QuotationItem) => {
     setCartItems((prev) => {
       const nextItems = [...prev, item];
@@ -326,7 +365,7 @@ export default function App() {
           : prevInfo.serviceType === 'التصميم الداخلي والديكور'
           ? 'إصدار رخصة بناء وتصاميم هندسية'
           : prevInfo.serviceType;
-        return {
+        const nextInfo: ClientInfo = {
           ...prevInfo,
           buildingType: autoBuildingType,
           serviceType: autoServiceType,
@@ -342,6 +381,12 @@ export default function App() {
             excludeCivilDefense: !detected.civilDefense,
           },
         };
+        if (prevInfo.contractData && prevInfo.contractData.autoSynced !== false) {
+          nextInfo.contractData = sanitizeContractData(
+            buildSmartContract(nextInfo, nextItems, undefined, prevInfo.contractData.enabled)
+          );
+        }
+        return nextInfo;
       });
       return nextItems;
     });
@@ -349,13 +394,39 @@ export default function App() {
   };
 
   const handleRemoveItem = (id: string) => {
-    setCartItems((prev) => prev.filter((item) => item.id !== id));
+    setCartItems((prev) => {
+      const nextItems = prev.filter((item) => item.id !== id);
+      setClientInfo((prevInfo) => {
+        if (prevInfo.contractData && prevInfo.contractData.autoSynced !== false) {
+          return {
+            ...prevInfo,
+            contractData: sanitizeContractData(
+              buildSmartContract(prevInfo, nextItems, undefined, prevInfo.contractData.enabled)
+            ),
+          };
+        }
+        return prevInfo;
+      });
+      return nextItems;
+    });
   };
 
   const handleUpdateItem = (updatedItem: QuotationItem) => {
-    setCartItems((prev) =>
-      prev.map((item) => (item.id === updatedItem.id ? updatedItem : item))
-    );
+    setCartItems((prev) => {
+      const nextItems = prev.map((item) => (item.id === updatedItem.id ? updatedItem : item));
+      setClientInfo((prevInfo) => {
+        if (prevInfo.contractData && prevInfo.contractData.autoSynced !== false) {
+          return {
+            ...prevInfo,
+            contractData: sanitizeContractData(
+              buildSmartContract(prevInfo, nextItems, undefined, prevInfo.contractData.enabled)
+            ),
+          };
+        }
+        return prevInfo;
+      });
+      return nextItems;
+    });
     showToast(`تم تحديث بند "${updatedItem.title}" بنجاح ✏️`);
   };
 
@@ -735,6 +806,8 @@ export default function App() {
         onNewQuotation={handleInstantResetNewQuotation}
         isSimplifiedMode={outputMode === 'simplified'}
         onToggleSimplifiedMode={handleToggleSimplifiedMode}
+        isContractAttached={Boolean(clientInfo.contractData?.enabled)}
+        onOpenContractEditor={() => setIsContractEditorOpen(true)}
       />
 
       {/* Department Navigation Tabs */}
@@ -836,6 +909,17 @@ export default function App() {
         onNewQuotation={handleInstantResetNewQuotation}
         isSimplifiedMode={outputMode === 'simplified'}
         onToggleSimplifiedMode={handleToggleSimplifiedMode}
+        onOpenContractEditor={() => setIsContractEditorOpen(true)}
+      />
+
+      {/* Smart Contract Full Editor Modal */}
+      <ContractEditorModal
+        isOpen={isContractEditorOpen}
+        onClose={() => setIsContractEditorOpen(false)}
+        clientInfo={clientInfo}
+        items={cartItems}
+        onSaveContract={handleSaveContractData}
+        onSaveAndPreview={cartItems.length > 0 ? handleSaveContractAndPreview : undefined}
       />
 
       {/* Gemini AI Deed & Project Data Assistant Modal */}

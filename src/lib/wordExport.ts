@@ -12,7 +12,7 @@ import {
   ShadingType,
   ImageRun,
 } from 'docx';
-import { QuotationItem, ClientInfo } from '../types';
+import { QuotationItem, ClientInfo, ContractData, DocumentOutputBundle } from '../types';
 import { formatSAR, tafqeetSAR, formatNumber, getQuotationAreaDetails, generatePdfFileName } from '../utils/formatters';
 import {
   getActiveScopeItemsForQuotation,
@@ -20,6 +20,10 @@ import {
   EXCLUSION_CLAUSES,
   getPaymentMilestones,
 } from '../data/masterTemplateDefaults';
+import {
+  formatContractDisplayDate,
+  resolveActiveContractData,
+} from '../data/smartContractEngine';
 
 const cleanEngineerName = (name?: string) => {
   if (!name) return 'م. ماجد';
@@ -81,8 +85,11 @@ async function fetchImageBuffer(url: string): Promise<Uint8Array | null> {
 
 export async function generateWordDocumentBlob(
   clientInfo: ClientInfo,
-  items: QuotationItem[]
+  items: QuotationItem[],
+  bundleMode?: DocumentOutputBundle
 ): Promise<Blob> {
+  const effectiveBundle: DocumentOutputBundle =
+    bundleMode || (clientInfo.contractData?.enabled ? 'quote_and_contract' : 'quote_only');
   // Financial computations (exact match to QuotationPrintView)
   const subtotal = items.reduce((acc, item) => acc + item.totalPrice, 0);
 
@@ -1015,8 +1022,902 @@ export async function generateWordDocumentBlob(
     ],
   });
 
-  // Assemble full Word document on a single harmonious A4 page
-  const docChildren = [
+  // --- BUILD SMART CONTRACT SECTION CHILDREN IF REQUESTED ---
+  const buildContractWordChildren = (contract: ContractData): (Paragraph | Table)[] => {
+    const ordinals = ['أولاً', 'ثانياً', 'ثالثاً', 'رابعاً', 'خامساً', 'سادساً', 'سابعاً', 'ثامناً'];
+    let ordIdx = 0;
+    const nextOrd = () => ordinals[ordIdx++] || `${ordIdx}`;
+
+    const contractBorder = { style: BorderStyle.SINGLE, size: 1, color: 'D6D3CB' };
+    const cBorders = { top: contractBorder, bottom: contractBorder, left: contractBorder, right: contractBorder };
+
+    const makeArticleBar = (ord: string, title: string) =>
+      new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [
+          new TableRow({
+            children: [
+              new TableCell({
+                borders: cellNoBorders,
+                shading: { fill: 'E5E3DC', type: ShadingType.CLEAR },
+                children: [
+                  new Paragraph({
+                    alignment: AlignmentType.RIGHT,
+                    bidirectional: true,
+                    spacing: { before: 40, after: 40 },
+                    children: [
+                      new TextRun({ text: `${ord} :  ${title}`, bold: true, size: 20, color: '26282A' }),
+                    ],
+                  }),
+                ],
+              }),
+            ],
+          }),
+        ],
+      });
+
+    const firstPartyName = contract.firstPartyName?.trim() || clientInfo.clientName?.trim() || '........................';
+    const firstPartyId = contract.firstPartyId?.trim() || clientInfo.nationalId?.trim() || '........................';
+    const firstPartyAddress = contract.firstPartyAddress?.trim() || `مدينة ${clientInfo.projectCity || 'الرياض'}`;
+    const firstPartyPhone = contract.firstPartyPhone?.trim() || clientInfo.phone?.trim() || '........................';
+    const firstPartyEmail = contract.firstPartyEmail?.trim() || clientInfo.email?.trim() || '—';
+    const deedNo = contract.propertyRealEstateNumber?.trim() || clientInfo.deedNumber?.trim() || '—';
+    const numericArea = areaDetails.numericArea || clientInfo.landArea || 0;
+
+    const children: (Paragraph | Table)[] = [];
+
+    // Contract Letterhead
+    children.push(
+      new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        borders: cellNoBorders,
+        rows: [
+          new TableRow({
+            children: [
+              new TableCell({
+                width: { size: 65, type: WidthType.PERCENTAGE },
+                borders: cellNoBorders,
+                children: [
+                  new Paragraph({
+                    alignment: AlignmentType.RIGHT,
+                    bidirectional: true,
+                    children: [
+                      new TextRun({
+                        text: 'شركة الرؤية المضيئة للاستشارات الهندسية',
+                        bold: true,
+                        size: 20,
+                        color: '2C2E30',
+                      }),
+                    ],
+                  }),
+                  new Paragraph({
+                    alignment: AlignmentType.RIGHT,
+                    bidirectional: true,
+                    children: [
+                      new TextRun({
+                        text: 'LUMINOUS VISION ENGINEERING CONSULTANCY',
+                        bold: true,
+                        size: 14,
+                        color: 'A6926B',
+                      }),
+                    ],
+                  }),
+                ],
+              }),
+              new TableCell({
+                width: { size: 35, type: WidthType.PERCENTAGE },
+                borders: cellNoBorders,
+                children: [
+                  new Paragraph({
+                    alignment: AlignmentType.LEFT,
+                    bidirectional: true,
+                    children: [
+                      new TextRun({ text: `رقم العقد: ${contract.contractNumber}`, bold: true, size: 15, color: '2C2E30' }),
+                    ],
+                  }),
+                  new Paragraph({
+                    alignment: AlignmentType.LEFT,
+                    bidirectional: true,
+                    children: [
+                      new TextRun({
+                        text: `التاريخ: ${formatContractDisplayDate(contract.signingDate)} م`,
+                        size: 14,
+                        color: '5E5C57',
+                      }),
+                    ],
+                  }),
+                ],
+              }),
+            ],
+          }),
+        ],
+      })
+    );
+
+    // Title Banner
+    children.push(
+      new Paragraph({ spacing: { before: 80, after: 40 }, children: [] }),
+      new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [
+          new TableRow({
+            children: [
+              new TableCell({
+                borders: {
+                  top: noBorder,
+                  bottom: noBorder,
+                  right: noBorder,
+                  left: { style: BorderStyle.SINGLE, size: 24, color: 'A6926B' },
+                },
+                shading: { fill: 'ECEBE7', type: ShadingType.CLEAR },
+                children: [
+                  new Paragraph({
+                    alignment: AlignmentType.RIGHT,
+                    bidirectional: true,
+                    spacing: { before: 80, after: contract.contractSubtitle ? 20 : 80 },
+                    children: [
+                      new TextRun({ text: contract.contractTitle, bold: true, size: 30, color: '26282A' }),
+                    ],
+                  }),
+                  ...(contract.contractSubtitle?.trim()
+                    ? [
+                        new Paragraph({
+                          alignment: AlignmentType.RIGHT,
+                          bidirectional: true,
+                          spacing: { after: 80 },
+                          children: [
+                            new TextRun({ text: contract.contractSubtitle, bold: true, size: 26, color: '3A3C3E' }),
+                          ],
+                        }),
+                      ]
+                    : []),
+                ],
+              }),
+            ],
+          }),
+        ],
+      })
+    );
+
+    // Basmalah & signing declaration
+    children.push(
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        bidirectional: true,
+        spacing: { before: 120, after: 40 },
+        children: [
+          new TextRun({
+            text: 'الحمد لله رب العالمين والصلاة والسلام على نبينا محمد وعلى آله وصحبه أجمعين أما بعد،',
+            bold: true,
+            size: 18,
+            color: '2C2E30',
+          }),
+        ],
+      }),
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        bidirectional: true,
+        spacing: { after: 100 },
+        children: [
+          new TextRun({
+            text: `بعون من الله وتوفيقه تم إبرام العقد رقم (${contract.contractNumber}) والتوقيع عليه بمدينة ${contract.signingCity || 'الرياض'} يوم ${contract.signingDayName} الموافق ${formatContractDisplayDate(contract.signingDate)} م`,
+            size: 17,
+            color: '3A3C3E',
+          }),
+        ],
+      })
+    );
+
+    // Parties & Preamble boxes
+    const partyBox = (label: string, body: string, fill: string) =>
+      new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [
+          new TableRow({
+            children: [
+              new TableCell({
+                borders: cellNoBorders,
+                shading: { fill, type: ShadingType.CLEAR },
+                children: [
+                  new Paragraph({
+                    alignment: AlignmentType.BOTH,
+                    bidirectional: true,
+                    spacing: { before: 50, after: 50 },
+                    children: [
+                      new TextRun({ text: `${label}: `, bold: true, size: 17, color: '1F2022' }),
+                      new TextRun({ text: body, size: 17, color: '2C2E30' }),
+                    ],
+                  }),
+                ],
+              }),
+            ],
+          }),
+        ],
+      });
+
+    children.push(
+      partyBox(
+        'الطرف الأول',
+        `${firstPartyName} – هوية رقم: (${firstPartyId})، عنوان: ${firstPartyAddress}، جوال: ${firstPartyPhone}، بريد إلكتروني: (${firstPartyEmail})، مالك قطعة الأرض برقم (${clientInfo.plotNumber || '—'})، من المخطط رقم (${clientInfo.planNumber || '—'})، برقم الصك/العقار (${deedNo})، الواقعة في حي ${clientInfo.district || 'الموضح أعلاه'}، بمدينة ${clientInfo.projectCity || 'الرياض'}، بمساحة إجمالية وقدرها (${formatNumber(numericArea)} م²)، ويشار إليه فيما بعد بالطرف الأول أو المالك.`,
+        'F3F0E8'
+      ),
+      new Paragraph({ spacing: { after: 40 }, children: [] }),
+      partyBox('الطرف الثاني', contract.secondPartyText, 'ECEBE7'),
+      new Paragraph({ spacing: { after: 40 }, children: [] }),
+      partyBox('المقدمة', contract.preambleText, 'F3F0E8'),
+      new Paragraph({ spacing: { after: 80 }, children: [] })
+    );
+
+    // Optional Project Overview
+    if (contract.showProjectOverview && contract.projectOverviewText.trim()) {
+      children.push(
+        makeArticleBar(nextOrd(), 'الوصف العام للمشروع :'),
+        new Paragraph({
+          alignment: AlignmentType.RIGHT,
+          bidirectional: true,
+          spacing: { before: 50, after: 80 },
+          children: [new TextRun({ text: contract.projectOverviewText, bold: true, size: 17, color: '2C2E30' })],
+        })
+      );
+    }
+
+    // Consultant Scope
+    children.push(makeArticleBar(nextOrd(), contract.consultantScopeTitle || 'التزامات الاستشاري :'));
+    contract.scopeGroups.forEach((group) => {
+      if (group.title?.trim()) {
+        children.push(
+          new Paragraph({
+            alignment: AlignmentType.RIGHT,
+            bidirectional: true,
+            spacing: { before: 70, after: 25 },
+            children: [new TextRun({ text: group.title, bold: true, size: 18, color: '26282A' })],
+          })
+        );
+      }
+      if (group.subtitle?.trim()) {
+        children.push(
+          new Paragraph({
+            alignment: AlignmentType.RIGHT,
+            bidirectional: true,
+            spacing: { before: 30, after: 20 },
+            children: [new TextRun({ text: group.subtitle, bold: true, size: 16, color: '5E5C57' })],
+          })
+        );
+      }
+      group.items.forEach((line) => {
+        children.push(
+          new Paragraph({
+            alignment: AlignmentType.RIGHT,
+            bidirectional: true,
+            spacing: { after: 25 },
+            children: [
+              new TextRun({ text: '• ', bold: true, size: 16, color: 'A6926B' }),
+              new TextRun({ text: line, size: 16, color: '2C2E30' }),
+            ],
+          })
+        );
+      });
+    });
+
+    // Supervision Inspection Stages
+    if (contract.showSupervisionStages && contract.supervisionStages.length > 0) {
+      children.push(
+        new Paragraph({ spacing: { before: 80 }, children: [] }),
+        makeArticleBar(nextOrd(), contract.supervisionStagesTitle || 'مراحل استلامات الأعمال :'),
+        ...(contract.supervisionMaxVisitsText
+          ? [
+              new Paragraph({
+                alignment: AlignmentType.RIGHT,
+                bidirectional: true,
+                spacing: { before: 50, after: 25 },
+                children: [new TextRun({ text: contract.supervisionMaxVisitsText, bold: true, size: 16 })],
+              }),
+            ]
+          : []),
+        ...(contract.supervisionExtraVisitFeeText
+          ? [
+              new Paragraph({
+                alignment: AlignmentType.RIGHT,
+                bidirectional: true,
+                spacing: { after: 60 },
+                children: [new TextRun({ text: contract.supervisionExtraVisitFeeText, bold: true, size: 16, color: '7C6840' })],
+              }),
+            ]
+          : []),
+        new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: [
+            new TableRow({
+              children: [
+                new TableCell({
+                  width: { size: 12, type: WidthType.PERCENTAGE },
+                  borders: cBorders,
+                  shading: { fill: 'ECEBE7', type: ShadingType.CLEAR },
+                  children: [
+                    new Paragraph({
+                      alignment: AlignmentType.CENTER,
+                      bidirectional: true,
+                      children: [new TextRun({ text: 'م', bold: true, size: 16 })],
+                    }),
+                  ],
+                }),
+                new TableCell({
+                  width: { size: 88, type: WidthType.PERCENTAGE },
+                  borders: cBorders,
+                  shading: { fill: 'ECEBE7', type: ShadingType.CLEAR },
+                  children: [
+                    new Paragraph({
+                      alignment: AlignmentType.RIGHT,
+                      bidirectional: true,
+                      children: [new TextRun({ text: 'البيان (المرحلة الإنشائية)', bold: true, size: 16 })],
+                    }),
+                  ],
+                }),
+              ],
+            }),
+            ...contract.supervisionStages.map(
+              (stg, idx) =>
+                new TableRow({
+                  children: [
+                    new TableCell({
+                      borders: cBorders,
+                      children: [
+                        new Paragraph({
+                          alignment: AlignmentType.CENTER,
+                          bidirectional: true,
+                          children: [new TextRun({ text: `${idx + 1}`, bold: true, size: 15 })],
+                        }),
+                      ],
+                    }),
+                    new TableCell({
+                      borders: cBorders,
+                      children: [
+                        new Paragraph({
+                          alignment: AlignmentType.RIGHT,
+                          bidirectional: true,
+                          children: [new TextRun({ text: stg, bold: true, size: 16 })],
+                        }),
+                      ],
+                    }),
+                  ],
+                })
+            ),
+          ],
+        })
+      );
+    }
+
+    // Owner Obligations
+    if (contract.ownerObligations.length > 0) {
+      children.push(
+        new Paragraph({ spacing: { before: 80 }, children: [] }),
+        makeArticleBar(nextOrd(), 'التزامات المالك :'),
+        ...contract.ownerObligations.map(
+          (ob) =>
+            new Paragraph({
+              alignment: AlignmentType.RIGHT,
+              bidirectional: true,
+              spacing: { before: 30, after: 25 },
+              children: [
+                new TextRun({ text: '• ', bold: true, size: 16, color: 'A6926B' }),
+                new TextRun({ text: ob, size: 16, color: '2C2E30' }),
+              ],
+            })
+        )
+      );
+    }
+
+    // Timeline Table
+    if (contract.showTimelineTable && contract.timelineRows.length > 0) {
+      children.push(
+        new Paragraph({ spacing: { before: 80 }, children: [] }),
+        makeArticleBar(nextOrd(), 'المدة الزمنية لإنهاء مراحل المشروع :'),
+        ...contract.timelineNotes.map(
+          (note) =>
+            new Paragraph({
+              alignment: AlignmentType.RIGHT,
+              bidirectional: true,
+              spacing: { before: 25, after: 25 },
+              children: [new TextRun({ text: note, size: 16, color: '3A3C3E' })],
+            })
+        ),
+        new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: [
+            new TableRow({
+              children: ['المرحلة', 'وصف العمل', 'تفاصيل الأعمال', 'الفترة الزمنية'].map(
+                (head) =>
+                  new TableCell({
+                    borders: cBorders,
+                    shading: { fill: '3A3C3E', type: ShadingType.CLEAR },
+                    children: [
+                      new Paragraph({
+                        alignment: AlignmentType.CENTER,
+                        bidirectional: true,
+                        children: [new TextRun({ text: head, bold: true, size: 16, color: 'FFFFFF' })],
+                      }),
+                    ],
+                  })
+              ),
+            }),
+            ...contract.timelineRows.map(
+              (row) =>
+                new TableRow({
+                  children: [row.stage, row.workTitle, row.details, row.duration].map(
+                    (val) =>
+                      new TableCell({
+                        borders: cBorders,
+                        children: [
+                          new Paragraph({
+                            alignment: AlignmentType.CENTER,
+                            bidirectional: true,
+                            children: [new TextRun({ text: val, size: 15, color: '2C2E30' })],
+                          }),
+                        ],
+                      })
+                  ),
+                })
+            ),
+            new TableRow({
+              children: [
+                new TableCell({
+                  columnSpan: 3,
+                  borders: cBorders,
+                  shading: { fill: 'ECEBE7', type: ShadingType.CLEAR },
+                  children: [
+                    new Paragraph({
+                      alignment: AlignmentType.CENTER,
+                      bidirectional: true,
+                      children: [new TextRun({ text: contract.timelineTotalLabel, bold: true, size: 16 })],
+                    }),
+                  ],
+                }),
+                new TableCell({
+                  borders: cBorders,
+                  shading: { fill: 'ECEBE7', type: ShadingType.CLEAR },
+                  children: [
+                    new Paragraph({
+                      alignment: AlignmentType.CENTER,
+                      bidirectional: true,
+                      children: [new TextRun({ text: contract.timelineTotalDuration, bold: true, size: 16 })],
+                    }),
+                  ],
+                }),
+              ],
+            }),
+          ],
+        })
+      );
+    }
+
+    // General Terms
+    if (contract.generalTerms.length > 0) {
+      children.push(
+        new Paragraph({ spacing: { before: 80 }, children: [] }),
+        makeArticleBar(nextOrd(), 'شروط عامة :'),
+        ...contract.generalTerms.map(
+          (term) =>
+            new Paragraph({
+              alignment: AlignmentType.RIGHT,
+              bidirectional: true,
+              spacing: { before: 30, after: 25 },
+              children: [
+                new TextRun({ text: '• ', bold: true, size: 16, color: 'A6926B' }),
+                new TextRun({ text: term, size: 16, color: '2C2E30' }),
+              ],
+            })
+        )
+      );
+    }
+
+    // IP Rights
+    if (contract.showIpRights && contract.ipRights.length > 0) {
+      children.push(
+        new Paragraph({ spacing: { before: 80 }, children: [] }),
+        makeArticleBar(nextOrd(), 'حقوق الملكية الفكرية والفنية :'),
+        ...contract.ipRights.map(
+          (ip) =>
+            new Paragraph({
+              alignment: AlignmentType.RIGHT,
+              bidirectional: true,
+              spacing: { before: 30, after: 25 },
+              children: [
+                new TextRun({ text: '• ', bold: true, size: 16, color: 'A6926B' }),
+                new TextRun({ text: ip, size: 16, color: '2C2E30' }),
+              ],
+            })
+        )
+      );
+    }
+
+    // Pricing, Payment Schedule & Bank Details
+    children.push(
+      new Paragraph({ spacing: { before: 80 }, children: [] }),
+      makeArticleBar(nextOrd(), 'الأسعار وطريقة الدفع :'),
+      new Paragraph({
+        alignment: AlignmentType.RIGHT,
+        bidirectional: true,
+        spacing: { before: 50, after: 50 },
+        children: [new TextRun({ text: contract.pricingIntroText, size: 16, color: '2C2E30' })],
+      }),
+      new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [
+          new TableRow({
+            children: ['م', 'البيان', 'المبلغ الإجمالي (ر.س)'].map(
+              (h) =>
+                new TableCell({
+                  borders: cBorders,
+                  shading: { fill: '3A3C3E', type: ShadingType.CLEAR },
+                  children: [
+                    new Paragraph({
+                      alignment: AlignmentType.CENTER,
+                      bidirectional: true,
+                      children: [new TextRun({ text: h, bold: true, size: 16, color: 'FFFFFF' })],
+                    }),
+                  ],
+                })
+            ),
+          }),
+          ...items.map(
+            (it, idx) =>
+              new TableRow({
+                children: [
+                  new TableCell({
+                    borders: cBorders,
+                    children: [
+                      new Paragraph({
+                        alignment: AlignmentType.CENTER,
+                        bidirectional: true,
+                        children: [new TextRun({ text: `${idx + 1}`, size: 15 })],
+                      }),
+                    ],
+                  }),
+                  new TableCell({
+                    borders: cBorders,
+                    children: [
+                      new Paragraph({
+                        alignment: AlignmentType.CENTER,
+                        bidirectional: true,
+                        children: [new TextRun({ text: it.title, bold: true, size: 16 })],
+                      }),
+                    ],
+                  }),
+                  new TableCell({
+                    borders: cBorders,
+                    children: [
+                      new Paragraph({
+                        alignment: AlignmentType.CENTER,
+                        bidirectional: true,
+                        children: [new TextRun({ text: formatSAR(it.totalPrice), bold: true, size: 16 })],
+                      }),
+                    ],
+                  }),
+                ],
+              })
+          ),
+          ...(discountAmount > 0
+            ? [
+                new TableRow({
+                  children: [
+                    new TableCell({ borders: cBorders, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: '—', size: 15 })] })] }),
+                    new TableCell({
+                      borders: cBorders,
+                      shading: { fill: 'F3F0E8', type: ShadingType.CLEAR },
+                      children: [
+                        new Paragraph({
+                          alignment: AlignmentType.CENTER,
+                          bidirectional: true,
+                          children: [
+                            new TextRun({
+                              text: `خصم تجاري ${clientInfo.discountType === 'percentage' ? `بنسبة ${clientInfo.discountValue}%` : 'خاص'}`,
+                              bold: true,
+                              size: 16,
+                              color: '7C6840',
+                            }),
+                          ],
+                        }),
+                      ],
+                    }),
+                    new TableCell({
+                      borders: cBorders,
+                      shading: { fill: 'F3F0E8', type: ShadingType.CLEAR },
+                      children: [
+                        new Paragraph({
+                          alignment: AlignmentType.CENTER,
+                          bidirectional: true,
+                          children: [new TextRun({ text: `- ${formatSAR(discountAmount)}`, bold: true, size: 16, color: '7C6840' })],
+                        }),
+                      ],
+                    }),
+                  ],
+                }),
+              ]
+            : []),
+          new TableRow({
+            children: [
+              new TableCell({
+                columnSpan: 2,
+                borders: cBorders,
+                shading: { fill: '3A3C3E', type: ShadingType.CLEAR },
+                children: [
+                  new Paragraph({
+                    alignment: AlignmentType.CENTER,
+                    bidirectional: true,
+                    children: [new TextRun({ text: 'إجمالي قيمة العقد بدون الضريبة', bold: true, size: 16, color: 'FFFFFF' })],
+                  }),
+                ],
+              }),
+              new TableCell({
+                borders: cBorders,
+                shading: { fill: '3A3C3E', type: ShadingType.CLEAR },
+                children: [
+                  new Paragraph({
+                    alignment: AlignmentType.CENTER,
+                    bidirectional: true,
+                    children: [new TextRun({ text: formatSAR(amountAfterDiscount), bold: true, size: 16, color: 'FFFFFF' })],
+                  }),
+                ],
+              }),
+            ],
+          }),
+          ...(clientInfo.includeTax
+            ? [
+                new TableRow({
+                  children: [
+                    new TableCell({
+                      columnSpan: 2,
+                      borders: cBorders,
+                      shading: { fill: '4B4D50', type: ShadingType.CLEAR },
+                      children: [
+                        new Paragraph({
+                          alignment: AlignmentType.CENTER,
+                          bidirectional: true,
+                          children: [new TextRun({ text: 'إجمالي قيمة الضريبة (15%)', bold: true, size: 16, color: 'FFFFFF' })],
+                        }),
+                      ],
+                    }),
+                    new TableCell({
+                      borders: cBorders,
+                      shading: { fill: '4B4D50', type: ShadingType.CLEAR },
+                      children: [
+                        new Paragraph({
+                          alignment: AlignmentType.CENTER,
+                          bidirectional: true,
+                          children: [new TextRun({ text: formatSAR(taxAmount), bold: true, size: 16, color: 'FFFFFF' })],
+                        }),
+                      ],
+                    }),
+                  ],
+                }),
+              ]
+            : []),
+          new TableRow({
+            children: [
+              new TableCell({
+                columnSpan: 2,
+                borders: cBorders,
+                shading: { fill: '2A2C2E', type: ShadingType.CLEAR },
+                children: [
+                  new Paragraph({
+                    alignment: AlignmentType.CENTER,
+                    bidirectional: true,
+                    children: [
+                      new TextRun({
+                        text: clientInfo.includeTax ? 'إجمالي قيمة العقد شامل الضريبة' : 'إجمالي قيمة العقد',
+                        bold: true,
+                        size: 17,
+                        color: 'FFFFFF',
+                      }),
+                    ],
+                  }),
+                ],
+              }),
+              new TableCell({
+                borders: cBorders,
+                shading: { fill: '2A2C2E', type: ShadingType.CLEAR },
+                children: [
+                  new Paragraph({
+                    alignment: AlignmentType.CENTER,
+                    bidirectional: true,
+                    children: [new TextRun({ text: formatSAR(grandTotal), bold: true, size: 17, color: 'F3DFB8' })],
+                  }),
+                ],
+              }),
+            ],
+          }),
+          new TableRow({
+            children: [
+              new TableCell({
+                columnSpan: 3,
+                borders: cBorders,
+                shading: { fill: '3A3C3E', type: ShadingType.CLEAR },
+                children: [
+                  new Paragraph({
+                    alignment: AlignmentType.CENTER,
+                    bidirectional: true,
+                    children: [new TextRun({ text: tafqeetSAR(grandTotal), bold: true, size: 16, color: 'F3DFB8' })],
+                  }),
+                ],
+              }),
+            ],
+          }),
+        ],
+      }),
+      new Paragraph({
+        alignment: AlignmentType.RIGHT,
+        bidirectional: true,
+        spacing: { before: 80, after: 40 },
+        children: [new TextRun({ text: contract.paymentMethodNote, bold: true, size: 16, color: '2C2E30' })],
+      }),
+      new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [
+          new TableRow({
+            children: ['م', 'الدفعة', 'البيان', 'النسبة', 'المبلغ'].map(
+              (h) =>
+                new TableCell({
+                  borders: cBorders,
+                  shading: { fill: '3A3C3E', type: ShadingType.CLEAR },
+                  children: [
+                    new Paragraph({
+                      alignment: AlignmentType.CENTER,
+                      bidirectional: true,
+                      children: [new TextRun({ text: h, bold: true, size: 15, color: 'FFFFFF' })],
+                    }),
+                  ],
+                })
+            ),
+          }),
+          ...milestones.map(
+            (m, idx) =>
+              new TableRow({
+                children: [`${idx + 1}`, m.title, m.description, `${m.percentage}%`, formatSAR(m.amount)].map(
+                  (val) =>
+                    new TableCell({
+                      borders: cBorders,
+                      children: [
+                        new Paragraph({
+                          alignment: AlignmentType.CENTER,
+                          bidirectional: true,
+                          children: [new TextRun({ text: val, size: 15 })],
+                        }),
+                      ],
+                    })
+                ),
+              })
+          ),
+        ],
+      }),
+      new Paragraph({ spacing: { before: 60 }, children: [] }),
+      new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [
+          ['البنك', clientInfo.bankDetails?.bankName || 'البنك السعودي للاستثمار'],
+          ['اسم الحساب', clientInfo.bankDetails?.accountName || 'شركة الرؤية المضيئة للاستشارات الهندسية'],
+          ...(clientInfo.bankDetails?.accountNumber
+            ? [['رقم الحساب', clientInfo.bankDetails.accountNumber]]
+            : []),
+          ['الآيبان (IBAN)', clientInfo.bankDetails?.iban || 'SA83 6500 0000 1383 4937 6001'],
+        ].map(
+          ([k, v]) =>
+            new TableRow({
+              children: [
+                new TableCell({
+                  width: { size: 28, type: WidthType.PERCENTAGE },
+                  borders: cBorders,
+                  shading: { fill: 'F6F5F1', type: ShadingType.CLEAR },
+                  children: [
+                    new Paragraph({
+                      alignment: AlignmentType.RIGHT,
+                      bidirectional: true,
+                      children: [new TextRun({ text: k, bold: true, size: 15, color: '5E5C57' })],
+                    }),
+                  ],
+                }),
+                new TableCell({
+                  width: { size: 72, type: WidthType.PERCENTAGE },
+                  borders: cBorders,
+                  children: [
+                    new Paragraph({
+                      alignment: AlignmentType.CENTER,
+                      bidirectional: true,
+                      children: [new TextRun({ text: v, bold: true, size: 15, color: '26282A' })],
+                    }),
+                  ],
+                }),
+              ],
+            })
+        ),
+      }),
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        bidirectional: true,
+        spacing: { before: 100, after: 60 },
+        children: [new TextRun({ text: contract.closingText || 'هذا والله ولي التوفيق،', bold: true, size: 18 })],
+      }),
+      new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [
+          new TableRow({
+            children: ['الطرف الأول (المالك)', 'الطرف الثاني (الاستشاري)'].map(
+              (h) =>
+                new TableCell({
+                  width: { size: 50, type: WidthType.PERCENTAGE },
+                  borders: cBorders,
+                  shading: { fill: '3A3C3E', type: ShadingType.CLEAR },
+                  children: [
+                    new Paragraph({
+                      alignment: AlignmentType.CENTER,
+                      bidirectional: true,
+                      children: [new TextRun({ text: h, bold: true, size: 17, color: 'FFFFFF' })],
+                    }),
+                  ],
+                })
+            ),
+          }),
+          new TableRow({
+            children: [
+              new TableCell({
+                borders: cBorders,
+                shading: { fill: 'F3F0E8', type: ShadingType.CLEAR },
+                children: [
+                  new Paragraph({
+                    alignment: AlignmentType.CENTER,
+                    bidirectional: true,
+                    spacing: { before: 60, after: 40 },
+                    children: [new TextRun({ text: firstPartyName, bold: true, size: 17 })],
+                  }),
+                  new Paragraph({
+                    alignment: AlignmentType.RIGHT,
+                    bidirectional: true,
+                    children: [new TextRun({ text: 'التوقيع: ........................................', size: 15 })],
+                  }),
+                ],
+              }),
+              new TableCell({
+                borders: cBorders,
+                shading: { fill: 'F3F0E8', type: ShadingType.CLEAR },
+                children: [
+                  new Paragraph({
+                    alignment: AlignmentType.CENTER,
+                    bidirectional: true,
+                    spacing: { before: 60, after: 20 },
+                    children: [new TextRun({ text: 'شركة الرؤية المضيئة للاستشارات الهندسية', bold: true, size: 17 })],
+                  }),
+                  ...(contract.showCompanySeal && sealBuffer
+                    ? [
+                        new Paragraph({
+                          alignment: AlignmentType.CENTER,
+                          children: [
+                            new ImageRun({
+                              data: sealBuffer,
+                              transformation: { width: 95, height: 50 },
+                              type: 'png',
+                            }),
+                          ],
+                        }),
+                      ]
+                    : [
+                        new Paragraph({
+                          alignment: AlignmentType.RIGHT,
+                          bidirectional: true,
+                          children: [new TextRun({ text: 'التوقيع والختم: ................................', size: 15 })],
+                        }),
+                      ]),
+                ],
+              }),
+            ],
+          }),
+        ],
+      })
+    );
+
+    return children;
+  };
+
+  // Assemble Word sections according to bundleMode
+  const quotationChildren = [
     headerTable,
     proposalTitleParagraph,
 
@@ -1039,34 +1940,66 @@ export async function generateWordDocumentBlob(
     docFooterParagraph,
   ];
 
-  const doc = new Document({
-    sections: [
-      {
-        properties: {
-          page: {
-            margin: {
-              top: 420, // ~7.4mm margin for single-page A4 fit
-              bottom: 420,
-              left: 480,
-              right: 480,
-            },
+  const sections: any[] = [];
+
+  if (effectiveBundle === 'quote_only' || effectiveBundle === 'quote_and_contract') {
+    sections.push({
+      properties: {
+        page: {
+          margin: {
+            top: 420, // ~7.4mm margin for single-page A4 fit
+            bottom: 420,
+            left: 480,
+            right: 480,
           },
         },
-        children: docChildren,
       },
-    ],
-  });
+      children: quotationChildren,
+    });
+  }
+
+  if (effectiveBundle === 'quote_and_contract' || effectiveBundle === 'contract_only') {
+    const resolvedContract = resolveActiveContractData(clientInfo, items);
+    sections.push({
+      properties: {
+        page: {
+          margin: {
+            top: 680,
+            bottom: 680,
+            left: 720,
+            right: 720,
+          },
+        },
+      },
+      children: buildContractWordChildren(resolvedContract),
+    });
+  }
+
+  const doc = new Document({ sections });
 
   return await Packer.toBlob(doc);
 }
 
-export function downloadWordDocument(clientInfo: ClientInfo, items: QuotationItem[]) {
-  generateWordDocumentBlob(clientInfo, items).then((blob) => {
+export function downloadWordDocument(
+  clientInfo: ClientInfo,
+  items: QuotationItem[],
+  bundleMode?: DocumentOutputBundle
+) {
+  const effectiveBundle: DocumentOutputBundle =
+    bundleMode || (clientInfo.contractData?.enabled ? 'quote_and_contract' : 'quote_only');
+
+  generateWordDocumentBlob(clientInfo, items, effectiveBundle).then((blob) => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     const fileNo = generatePdfFileName(clientInfo);
-    a.download = `${fileNo}.docx`;
+    const suffix =
+      effectiveBundle === 'contract_only'
+        ? `_عقد`
+        : effectiveBundle === 'quote_and_contract'
+        ? `_عرض_وعقد`
+        : '';
+    a.download = `${fileNo}${suffix}.docx`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { QuotationItem, ClientInfo, MasterTemplateScopeFlags, PaymentMilestone } from '../../types';
+import { QuotationItem, ClientInfo, MasterTemplateScopeFlags, PaymentMilestone, ContractTemplateKind } from '../../types';
 import { formatSAR } from '../../utils/formatters';
 import { LuminousLogo } from '../LuminousLogo';
 import {
@@ -12,6 +12,11 @@ import {
   getPaymentMilestones,
   getDefaultMilestonesForType,
 } from '../../data/masterTemplateDefaults';
+import {
+  CONTRACT_TEMPLATE_CATALOG,
+  buildSmartContract,
+  resolveActiveContractData,
+} from '../../data/smartContractEngine';
 import {
   X,
   Trash2,
@@ -38,6 +43,8 @@ import {
   Edit3,
   Check,
   LayoutTemplate,
+  FileSignature,
+  RefreshCw,
 } from 'lucide-react';
 import { createAndShareGoogleDocQuotation } from '../../lib/googleDocsExport';
 import { downloadWordDocument } from '../../lib/wordExport';
@@ -59,6 +66,7 @@ interface QuotationDrawerProps {
   onNewQuotation?: () => void;
   isSimplifiedMode?: boolean;
   onToggleSimplifiedMode?: () => void;
+  onOpenContractEditor?: () => void;
 }
 
 export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
@@ -76,8 +84,9 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
   onNewQuotation,
   isSimplifiedMode = false,
   onToggleSimplifiedMode,
+  onOpenContractEditor,
 }) => {
-  const [activeTab, setActiveTab] = useState<'items' | 'project' | 'scope' | 'terms'>('items');
+  const [activeTab, setActiveTab] = useState<'items' | 'project' | 'scope' | 'terms' | 'contract'>('items');
 
   // Item inline edit state
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
@@ -133,11 +142,56 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
     }
   };
 
+  const activeContract = resolveActiveContractData(clientInfo, items);
+  const isContractAttached = Boolean(clientInfo.contractData?.enabled);
+
+  const handleToggleAttachContract = (enabled: boolean) => {
+    const nextContract = clientInfo.contractData
+      ? {
+          ...activeContract,
+          enabled,
+          scopeGroups: activeContract.scopeGroups.map((g) => ({
+            ...g,
+            subtitle: g.subtitle || '',
+          })),
+        }
+      : buildSmartContract(clientInfo, items, undefined, enabled);
+    onUpdateClientInfo({ contractData: nextContract });
+  };
+
+  const handleQuickSelectContractTemplate = (kind: ContractTemplateKind) => {
+    const regenerated = buildSmartContract(clientInfo, items, kind, true);
+    onUpdateClientInfo({
+      contractData: {
+        ...regenerated,
+        autoSynced: false,
+        scopeGroups: regenerated.scopeGroups.map((g) => ({
+          ...g,
+          subtitle: g.subtitle || '',
+        })),
+      },
+    });
+  };
+
+  const handleAutoSyncContract = () => {
+    const regenerated = buildSmartContract(clientInfo, items, undefined, true);
+    onUpdateClientInfo({
+      contractData: {
+        ...regenerated,
+        autoSynced: true,
+        scopeGroups: regenerated.scopeGroups.map((g) => ({
+          ...g,
+          subtitle: g.subtitle || '',
+        })),
+      },
+    });
+  };
+
   const handleDownloadWordFile = () => {
     if (onSaveQuote) {
       onSaveQuote();
     }
-    downloadWordDocument(clientInfo, items);
+    downloadWordDocument(clientInfo, items, isContractAttached ? 'quote_and_contract' : 'quote_only');
   };
 
   if (!isOpen) return null;
@@ -512,6 +566,26 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
             >
               <CreditCard className="w-3.5 h-3.5" />
               <span>الشروط والدفعات والبنك</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('contract')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition cursor-pointer ${
+                activeTab === 'contract'
+                  ? 'bg-[#3a3c3e] text-white shadow-xs'
+                  : isContractAttached
+                  ? 'bg-[#f3f0e8] text-stone-900 border border-[#a6926b]/60 hover:bg-[#ebe5d6]'
+                  : 'text-stone-600 hover:text-stone-900 hover:bg-stone-200'
+              }`}
+            >
+              <FileSignature className="w-3.5 h-3.5 text-[#a6926b]" />
+              <span>العقد الذكي</span>
+              {isContractAttached && (
+                <span className="bg-emerald-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded-sm">
+                  مرفق
+                </span>
+              )}
             </button>
           </div>
         </div>
@@ -1902,6 +1976,125 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
               </div>
             </div>
           )}
+
+          {/* TAB 5: SMART CONTRACT ATTACHMENT & TEMPLATE SELECTOR */}
+          {activeTab === 'contract' && (
+            <div className="space-y-4">
+              {/* Main Enable/Disable Switch Card */}
+              <div
+                className={`p-4 rounded-2xl border-2 transition ${
+                  isContractAttached
+                    ? 'bg-[#f3f0e8] border-[#a6926b]'
+                    : 'bg-stone-50 border-stone-200'
+                }`}
+              >
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isContractAttached}
+                    onChange={(e) => handleToggleAttachContract(e.target.checked)}
+                    className="w-5 h-5 mt-0.5 accent-[#a6926b] rounded cursor-pointer"
+                  />
+                  <div className="flex-1 space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-black text-stone-900">
+                        إرفاق العقد الذكي مع عرض السعر تلقائياً
+                      </span>
+                      <span
+                        className={`text-[10px] font-black px-2 py-0.5 rounded ${
+                          isContractAttached
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-stone-200 text-stone-600'
+                        }`}
+                      >
+                        {isContractAttached ? 'مفعّل ومرفق' : 'عرض سعر فقط'}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-stone-600 leading-relaxed">
+                      عند التفعيل، يتم توليد عقد هندسي متكامل يتكيّف تلقائياً مع القسم والخدمات المختارة (تصميم ورخصة، إشراف عظم، ديكور، مساحة، دفاع مدني، تنفيذ، أو عقد شامل) مع مزامنة كاملة للأسعار والدفعات وبيانات العميل، ويُطبع مباشرة خلف عرض السعر أو في ملف Word موحد.
+                    </p>
+                  </div>
+                </label>
+              </div>
+
+              {/* Active Contract Summary & Full Editor Launch */}
+              <div className="bg-white border border-stone-200 rounded-2xl p-4 space-y-3 shadow-2xs">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-[10px] font-bold text-[#a6926b] uppercase">
+                      النموذج النشط حالياً
+                    </div>
+                    <h4 className="text-sm font-black text-stone-900 mt-0.5">
+                      {activeContract.contractTitle}
+                    </h4>
+                    <div className="text-[11px] text-stone-500 mt-0.5">
+                      {activeContract.scopeGroups.length} أقسام نطاق عمل •{' '}
+                      {activeContract.ownerObligations.length} التزامات للمالك •{' '}
+                      {activeContract.generalTerms.length} شروط عامة
+                      {activeContract.showSupervisionStages &&
+                        ` • ${activeContract.supervisionStages.length} مرحلة استلام ميداني`}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAutoSyncContract}
+                    className="inline-flex items-center gap-1 text-[11px] font-bold bg-stone-100 hover:bg-stone-200 text-stone-700 px-2.5 py-1.5 rounded-lg transition cursor-pointer shrink-0"
+                    title="إعادة التوليد الذكي وفق بنود السلة الحالية"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>توليد ذكي</span>
+                  </button>
+                </div>
+
+                {onOpenContractEditor && (
+                  <button
+                    type="button"
+                    onClick={onOpenContractEditor}
+                    className="w-full bg-[#3a3c3e] hover:bg-stone-800 text-white font-black py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 shadow-sm transition cursor-pointer"
+                  >
+                    <FileSignature className="w-4 h-4 text-[#d4c3a3]" />
+                    <span>فتح محرر العقد الكامل (تعديل كافة البنود والأطراف والمراحل)</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Quick Template Switcher for All 9 Smart Templates */}
+              <div className="space-y-2">
+                <div className="text-xs font-black text-stone-800">
+                  اختيار نموذج العقد المناسب للقسم / الخدمة:
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {CONTRACT_TEMPLATE_CATALOG.map((tpl) => {
+                    const isSelected = activeContract.templateKind === tpl.id;
+                    return (
+                      <button
+                        key={tpl.id}
+                        type="button"
+                        onClick={() => handleQuickSelectContractTemplate(tpl.id)}
+                        className={`text-right p-2.5 rounded-xl border transition cursor-pointer ${
+                          isSelected
+                            ? 'bg-[#f3f0e8] border-[#a6926b] ring-1 ring-[#a6926b]'
+                            : 'bg-white border-stone-200 hover:border-stone-400'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="text-xs font-black text-stone-900">
+                            {tpl.shortLabel}
+                          </span>
+                          {isSelected && (
+                            <CheckCircle2 className="w-3.5 h-3.5 text-[#a6926b] shrink-0" />
+                          )}
+                        </div>
+                        <p className="text-[10px] text-stone-500 mt-0.5 line-clamp-2">
+                          {tpl.description}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Drawer Footer / Financial Summary */}
@@ -1968,6 +2161,43 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
               </div>
             )}
 
+            {/* Smart Contract Quick Attach Toggle Bar */}
+            <div
+              className={`rounded-xl border px-3 py-2 flex items-center justify-between gap-2 transition ${
+                isContractAttached
+                  ? 'bg-[#a6926b]/20 border-[#a6926b]/60'
+                  : 'bg-stone-800/70 border-stone-700/80'
+              }`}
+            >
+              <label className="flex items-center gap-2 cursor-pointer flex-1 min-w-0">
+                <input
+                  type="checkbox"
+                  checked={isContractAttached}
+                  onChange={(e) => handleToggleAttachContract(e.target.checked)}
+                  className="w-4 h-4 accent-[#a6926b] rounded cursor-pointer shrink-0"
+                />
+                <div className="min-w-0">
+                  <div className="text-[11px] font-black text-white flex items-center gap-1.5">
+                    <FileSignature className="w-3.5 h-3.5 text-[#d4c3a3] shrink-0" />
+                    <span className="truncate">إرفاق العقد الذكي مع عرض السعر</span>
+                  </div>
+                  <div className="text-[10px] text-stone-300 truncate">
+                    {activeContract.contractTitle}
+                  </div>
+                </div>
+              </label>
+
+              {onOpenContractEditor && (
+                <button
+                  type="button"
+                  onClick={onOpenContractEditor}
+                  className="shrink-0 bg-stone-950/70 hover:bg-stone-950 text-[#e6d7b9] border border-[#a6926b]/40 px-2.5 py-1 rounded-lg text-[10.5px] font-bold transition cursor-pointer"
+                >
+                  تعديل العقد
+                </button>
+              )}
+            </div>
+
             <button
               type="button"
               onClick={onPrint}
@@ -1976,7 +2206,13 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
             >
               <Printer className="w-4 h-4 text-stone-950 flex-shrink-0" />
               <span>
-                {isSimplifiedMode ? 'معاينة وطباعة برنامج الاصالة المبسط' : 'معاينة وطباعة النموذج الموحد'}
+                {isSimplifiedMode
+                  ? isContractAttached
+                    ? 'معاينة وطباعة عرض الاصالة + العقد الذكي'
+                    : 'معاينة وطباعة برنامج الاصالة المبسط'
+                  : isContractAttached
+                  ? 'معاينة وطباعة عرض السعر + العقد الذكي'
+                  : 'معاينة وطباعة النموذج الموحد'}
               </span>
               <span className="bg-stone-950/15 text-stone-900 border border-stone-950/20 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 mr-1">
                 <Cloud className="w-3 h-3 text-stone-950" />

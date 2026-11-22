@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
-import { QuotationItem, ClientInfo, PaymentMilestone } from '../../types';
+import React, { useState, useRef, useEffect } from 'react';
+import { QuotationItem, ClientInfo, PaymentMilestone, ContractData, DocumentOutputBundle } from '../../types';
 import { formatSAR, tafqeetSAR, formatNumber, generatePdfFileName, getQuotationAreaDetails } from '../../utils/formatters';
 import {
   Printer,
@@ -20,6 +20,7 @@ import {
   Share2,
   Maximize2,
   Sparkles,
+  FileSignature,
 } from 'lucide-react';
 import { LuminousLogo } from '../LuminousLogo';
 import {
@@ -36,6 +37,12 @@ import { downloadWordDocument } from '../../lib/wordExport';
 import { GoogleDocExportModal } from '../modals/GoogleDocExportModal';
 import { EditPaymentMilestonesModal } from '../modals/EditPaymentMilestonesModal';
 import { SimplifiedQuotationView } from './SimplifiedQuotationView';
+import { ContractPrintView } from '../contract/ContractPrintView';
+import { ContractEditorModal } from '../contract/ContractEditorModal';
+import {
+  resolveActiveContractData,
+  buildContractPlainText,
+} from '../../data/smartContractEngine';
 
 export type QuotationViewMode = 'master' | 'simplified' | 'compact';
 
@@ -120,6 +127,57 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({
   const [copied, setCopied] = useState<boolean>(false);
   const [printScaleMode, setPrintScaleMode] = useState<'auto' | '100' | '95' | '90' | '85'>('auto');
   const [isEditMilestonesOpen, setIsEditMilestonesOpen] = useState<boolean>(false);
+  const [documentBundle, setDocumentBundle] = useState<DocumentOutputBundle>(
+    clientInfo.contractData?.enabled ? 'quote_and_contract' : 'quote_only'
+  );
+  const [isContractEditorOpen, setIsContractEditorOpen] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (clientInfo.contractData?.enabled) {
+      setDocumentBundle((prev) => (prev === 'quote_only' ? 'quote_and_contract' : prev));
+    } else if (clientInfo.contractData && !clientInfo.contractData.enabled) {
+      setDocumentBundle((prev) => (prev === 'quote_and_contract' ? 'quote_only' : prev));
+    }
+  }, [clientInfo.contractData?.enabled]);
+
+  const activeContract = resolveActiveContractData(clientInfo, items);
+
+  const handleSaveContractData = (updatedContract: ContractData) => {
+    const sanitized: ContractData = {
+      ...updatedContract,
+      scopeGroups: updatedContract.scopeGroups.map((g) => ({
+        ...g,
+        subtitle: g.subtitle || '',
+      })),
+    };
+    if (onUpdateClientInfo) {
+      onUpdateClientInfo({ contractData: sanitized });
+    }
+    if (sanitized.enabled && documentBundle === 'quote_only') {
+      setDocumentBundle('quote_and_contract');
+    } else if (!sanitized.enabled && documentBundle !== 'quote_only') {
+      setDocumentBundle('quote_only');
+    }
+  };
+
+  const handleSelectBundle = (bundle: DocumentOutputBundle) => {
+    setDocumentBundle(bundle);
+    if (onUpdateClientInfo) {
+      const shouldEnable = bundle !== 'quote_only';
+      if (Boolean(clientInfo.contractData?.enabled) !== shouldEnable) {
+        onUpdateClientInfo({
+          contractData: {
+            ...activeContract,
+            enabled: shouldEnable,
+            scopeGroups: activeContract.scopeGroups.map((g) => ({
+              ...g,
+              subtitle: g.subtitle || '',
+            })),
+          },
+        });
+      }
+    }
+  };
 
   const printContainerRef = useRef<HTMLDivElement>(null);
 
@@ -231,7 +289,13 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({
   const handlePrint = () => {
     updateAutoPrintScale();
     const originalTitle = document.title;
-    document.title = generatePdfFileName(clientInfo);
+    const baseTitle = generatePdfFileName(clientInfo);
+    document.title =
+      documentBundle === 'quote_and_contract'
+        ? `${baseTitle}_وعقد`
+        : documentBundle === 'contract_only'
+        ? baseTitle.replace('عرض_سعر', 'عقد')
+        : baseTitle;
     // Allow CSS zoom variable to settle in DOM before print preview executes
     requestAnimationFrame(() => {
       setTimeout(() => {
@@ -279,11 +343,11 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({
 
   const handleDownloadWordFile = () => {
     notifyExportComplete();
-    downloadWordDocument(clientInfo, items);
+    downloadWordDocument(clientInfo, items, documentBundle);
   };
 
   const handleCopyText = () => {
-    const lines = [
+    const quoteLines = [
       `عرض سعر رسمي — مجموعة شركات الرؤية المضيئة للاستشارات الهندسية`,
       `رقم العرض: ${clientInfo.proposalNumber} | التاريخ: ${clientInfo.date}`,
       `العميل: ${clientInfo.clientName || 'العميل الكريم'} | الجوال: ${clientInfo.phone || 'غير مسجل'}`,
@@ -310,7 +374,14 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({
       .filter(Boolean)
       .join('\n');
 
-    navigator.clipboard.writeText(lines);
+    let finalOutput = quoteLines;
+    if (documentBundle === 'contract_only') {
+      finalOutput = buildContractPlainText(activeContract, clientInfo, items);
+    } else if (documentBundle === 'quote_and_contract') {
+      finalOutput = `${quoteLines}\n\n=======================================\n\n${buildContractPlainText(activeContract, clientInfo, items)}`;
+    }
+
+    navigator.clipboard.writeText(finalOutput);
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
   };
@@ -318,136 +389,213 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({
   return (
     <div className="print-outer-wrapper min-h-screen print:min-h-0 bg-stone-100 print:bg-white p-3 sm:p-8 print:!p-0 print:!m-0 font-sans">
       {/* Floating Control Bar for Screen (Hidden on Print) */}
-      <div className="max-w-4xl mx-auto mb-6 bg-stone-900 text-white p-3.5 sm:p-4 rounded-2xl shadow-xl flex flex-wrap items-center justify-between gap-4 no-print">
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            onClick={onBack}
-            className="flex items-center gap-1.5 text-xs font-bold bg-stone-800 hover:bg-stone-700 text-stone-200 px-3.5 py-2 rounded-xl transition"
-          >
-            <ArrowRight className="w-4 h-4" />
-            <span>العودة لبرنامج التسعير</span>
-          </button>
-
-          {/* View Mode Switcher */}
-          <div className="bg-stone-800 p-1 rounded-xl flex items-center gap-1 text-xs">
+      <div className="max-w-4xl mx-auto mb-6 bg-stone-900 text-white p-3.5 sm:p-4 rounded-2xl shadow-xl space-y-3 no-print">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
             <button
               type="button"
-              onClick={() => handleSelectViewMode('simplified')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
-                viewMode === 'simplified'
-                  ? 'bg-[#F0A429] text-[#1D2B36] shadow-xs'
-                  : 'text-stone-300 hover:text-white'
-              }`}
+              onClick={onBack}
+              className="flex items-center gap-1.5 text-xs font-bold bg-stone-800 hover:bg-stone-700 text-stone-200 px-3.5 py-2 rounded-xl transition cursor-pointer"
             >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>برنامج الاصالة المبسط</span>
+              <ArrowRight className="w-4 h-4" />
+              <span>العودة لبرنامج التسعير</span>
             </button>
 
-            <button
-              type="button"
-              onClick={() => handleSelectViewMode('master')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
-                viewMode === 'master'
-                  ? 'bg-amber-500 text-stone-950 shadow-xs'
-                  : 'text-stone-300 hover:text-white'
-              }`}
-            >
-              <FileText className="w-3.5 h-3.5" />
-              <span>النموذج الموحد (Master Template)</span>
-            </button>
+            {/* View Mode Switcher (hidden only when viewing contract_only) */}
+            {documentBundle !== 'contract_only' && (
+              <div className="bg-stone-800 p-1 rounded-xl flex items-center gap-1 text-xs">
+                <button
+                  type="button"
+                  onClick={() => handleSelectViewMode('simplified')}
+                  className={`px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                    viewMode === 'simplified'
+                      ? 'bg-[#F0A429] text-[#1D2B36] shadow-xs'
+                      : 'text-stone-300 hover:text-white'
+                  }`}
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>برنامج الاصالة المبسط</span>
+                </button>
 
-            <button
-              type="button"
-              onClick={() => handleSelectViewMode('compact')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
-                viewMode === 'compact'
-                  ? 'bg-amber-500 text-stone-950 shadow-xs'
-                  : 'text-stone-300 hover:text-white'
-              }`}
-            >
-              <Sliders className="w-3.5 h-3.5" />
-              <span>الجدول المالي المبسط</span>
-            </button>
+                <button
+                  type="button"
+                  onClick={() => handleSelectViewMode('master')}
+                  className={`px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                    viewMode === 'master'
+                      ? 'bg-amber-500 text-stone-950 shadow-xs'
+                      : 'text-stone-300 hover:text-white'
+                  }`}
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>النموذج الموحد (Master Template)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleSelectViewMode('compact')}
+                  className={`px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                    viewMode === 'compact'
+                      ? 'bg-amber-500 text-stone-950 shadow-xs'
+                      : 'text-stone-300 hover:text-white'
+                  }`}
+                >
+                  <Sliders className="w-3.5 h-3.5" />
+                  <span>الجدول المالي المبسط</span>
+                </button>
+              </div>
+            )}
+
+            {/* Single-Page Auto-fit Indicator & Preset Picker */}
+            {documentBundle !== 'contract_only' && (
+              <div className="flex items-center gap-1.5 bg-stone-800/90 border border-stone-700/80 px-2.5 py-1.5 rounded-xl text-xs">
+                <div className="flex items-center gap-1 text-emerald-400 font-bold">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="hidden sm:inline">مقياس العرض:</span>
+                </div>
+                <select
+                  value={printScaleMode}
+                  onChange={(e) => setPrintScaleMode(e.target.value as any)}
+                  className="bg-stone-900 border border-stone-700 text-stone-200 text-[11px] font-bold rounded-lg px-2 py-0.5 focus:outline-none focus:border-amber-400 cursor-pointer"
+                  title="ملاءمة مقياس الطباعة ليخرج عرض السعر دائماً على صفحة واحدة متناسقة دون انقسام"
+                >
+                  <option value="auto">تلقائي (صفحة واحدة 100%)</option>
+                  <option value="100">100% قياسي</option>
+                  <option value="95">95% مدمج</option>
+                  <option value="90">90% مكثف</option>
+                  <option value="85">85% خفيف</option>
+                </select>
+              </div>
+            )}
           </div>
 
-          {/* Single-Page Auto-fit Indicator & Preset Picker */}
-          <div className="flex items-center gap-1.5 bg-stone-800/90 border border-stone-700/80 px-2.5 py-1.5 rounded-xl text-xs">
-            <div className="flex items-center gap-1 text-emerald-400 font-bold">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="hidden sm:inline">طباعة على صفحة واحدة:</span>
-            </div>
-            <select
-              value={printScaleMode}
-              onChange={(e) => setPrintScaleMode(e.target.value as any)}
-              className="bg-stone-900 border border-stone-700 text-stone-200 text-[11px] font-bold rounded-lg px-2 py-0.5 focus:outline-none focus:border-amber-400 cursor-pointer"
-              title="ملاءمة مقياس الطباعة ليخرج الملف دائماً على صفحة واحدة متناسقة دون انقسام"
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handleCopyText}
+              className="flex items-center gap-1.5 bg-stone-800 hover:bg-stone-700 text-stone-200 px-3 py-2 rounded-xl text-xs font-bold transition cursor-pointer"
+              title="نسخ صيغة المستند كنص للواتساب أو الإيميل"
             >
-              <option value="auto">تلقائي (صفحة واحدة 100%)</option>
-              <option value="100">100% قياسي</option>
-              <option value="95">95% مدمج</option>
-              <option value="90">90% مكثف</option>
-              <option value="85">85% خفيف</option>
-            </select>
+              {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-stone-400" />}
+              <span className="hidden sm:inline">{copied ? 'تم النسخ' : 'نسخ النص'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsEditMilestonesOpen(true)}
+              className="flex items-center gap-1.5 bg-stone-800 hover:bg-stone-700 text-amber-400 border border-stone-700 hover:border-amber-500/50 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer"
+              title="تعديل مبالغ وأسعار الدفعات يدوياً بالريال السعودي"
+            >
+              <CreditCard className="w-4 h-4 text-amber-400" />
+              <span>تعديل الدفعات</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleDownloadWordFile}
+              className="flex items-center gap-1.5 bg-blue-900/50 hover:bg-blue-800/70 border border-blue-400/40 text-blue-100 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer"
+              title="تحميل كملف مايكروسوفت وورد Word (.docx)"
+            >
+              <Download className="w-4 h-4 text-blue-300" />
+              <span>Word (.docx)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleExportGoogleDoc}
+              className="flex items-center gap-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-95 text-white font-bold px-3.5 py-2 rounded-xl text-xs shadow-md transition cursor-pointer"
+              title="إنشاء وفتح مستند جوجل مفتوح الرابط للتعديل للجميع مباشرة من الكمبيوتر أو الجوال"
+            >
+              <FileEdit className="w-4 h-4 text-amber-300" />
+              <span>مستند جوجل</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handlePrint}
+              className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 active:scale-95 text-stone-950 font-black px-4 sm:px-5 py-2 rounded-xl text-xs shadow-md transition cursor-pointer"
+            >
+              <Printer className="w-4 h-4" />
+              <span>
+                {documentBundle === 'quote_and_contract'
+                  ? 'طباعة / PDF (عرض + عقد)'
+                  : documentBundle === 'contract_only'
+                  ? 'طباعة / PDF (العقد فقط)'
+                  : 'طباعة / PDF (صفحة واحدة)'}
+              </span>
+            </button>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={handleCopyText}
-            className="flex items-center gap-1.5 bg-stone-800 hover:bg-stone-700 text-stone-200 px-3 py-2 rounded-xl text-xs font-bold transition"
-            title="نسخ صيغة العرض كاملة كنص للواتساب أو الإيميل"
-          >
-            {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-stone-400" />}
-            <span className="hidden sm:inline">{copied ? 'تم النسخ' : 'نسخ النص'}</span>
-          </button>
+        {/* Smart Contract Bundle Bar */}
+        <div className="pt-2.5 border-t border-stone-800 flex flex-wrap items-center justify-between gap-2.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1.5 text-xs font-black text-[#d4c3a3]">
+              <FileSignature className="w-4 h-4 text-[#c2ac82]" />
+              <span>خيار إرفاق العقد الذكي:</span>
+            </div>
 
-          <button
-            type="button"
-            onClick={() => setIsEditMilestonesOpen(true)}
-            className="flex items-center gap-1.5 bg-stone-800 hover:bg-stone-700 text-amber-400 border border-stone-700 hover:border-amber-500/50 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer"
-            title="تعديل مبالغ وأسعار الدفعات يدوياً بالريال السعودي"
-          >
-            <CreditCard className="w-4 h-4 text-amber-400" />
-            <span>تعديل أسعار الدفعات</span>
-          </button>
+            <div className="bg-stone-800 p-1 rounded-xl flex items-center gap-1 text-xs">
+              <button
+                type="button"
+                onClick={() => handleSelectBundle('quote_only')}
+                className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${
+                  documentBundle === 'quote_only'
+                    ? 'bg-stone-200 text-stone-950 shadow-xs'
+                    : 'text-stone-300 hover:text-white'
+                }`}
+              >
+                عرض سعر فقط
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSelectBundle('quote_and_contract')}
+                className={`px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                  documentBundle === 'quote_and_contract'
+                    ? 'bg-[#a6926b] text-white shadow-xs'
+                    : 'text-stone-300 hover:text-white'
+                }`}
+              >
+                <FileSignature className="w-3.5 h-3.5" />
+                <span>عرض السعر + العقد</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSelectBundle('contract_only')}
+                className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${
+                  documentBundle === 'contract_only'
+                    ? 'bg-[#a6926b] text-white shadow-xs'
+                    : 'text-stone-300 hover:text-white'
+                }`}
+              >
+                العقد فقط
+              </button>
+            </div>
+          </div>
 
-          <button
-            type="button"
-            onClick={handleDownloadWordFile}
-            className="flex items-center gap-1.5 bg-blue-900/50 hover:bg-blue-800/70 border border-blue-400/40 text-blue-100 px-3.5 py-2 rounded-xl text-xs font-bold transition"
-            title="تحميل كملف مايكروسوفت وورد Word (.docx)"
-          >
-            <Download className="w-4 h-4 text-blue-300" />
-            <span>ملف Word (.docx)</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleExportGoogleDoc}
-            className="flex items-center gap-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-95 text-white font-bold px-3.5 py-2 rounded-xl text-xs shadow-md transition"
-            title="إنشاء وفتح مستند جوجل مفتوح الرابط للتعديل للجميع مباشرة من الكمبيوتر أو الجوال"
-          >
-            <FileEdit className="w-4 h-4 text-amber-300" />
-            <span>مستند جوجل (تعديل مباشر)</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handlePrint}
-            className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 active:scale-95 text-stone-950 font-black px-4 sm:px-5 py-2 rounded-xl text-xs shadow-md transition"
-          >
-            <Printer className="w-4 h-4" />
-            <span>طباعة / حفظ PDF (صفحة واحدة)</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] text-stone-400 hidden md:inline">
+              القالب المفعّل: <strong className="text-stone-200">{activeContract.contractTitle}</strong>
+            </span>
+            <button
+              type="button"
+              onClick={() => setIsContractEditorOpen(true)}
+              className="flex items-center gap-1.5 bg-[#a6926b]/20 hover:bg-[#a6926b]/35 text-[#e6d7b9] border border-[#a6926b]/50 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer"
+              title="فتح محرر العقد الذكي لتعديل البنود والأطراف والمدد وتبديل القالب"
+            >
+              <FileSignature className="w-3.5 h-3.5" />
+              <span>تعديل بنود العقد الذكي</span>
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Official Printable Document Container (A4 Single-Page Harmonious Layout) */}
+      {documentBundle !== 'contract_only' && (
       <div
         ref={printContainerRef}
-        className={`print-document-container max-w-[210mm] min-h-[292mm] print:max-w-none print:w-full print:min-h-[279mm] print:max-h-[282mm] mx-auto bg-white shadow-2xl rounded-2xl print:rounded-none print:shadow-none print:!p-0 print:!m-0 border border-stone-200 print:border-none text-stone-900 text-right font-sans flex flex-col justify-between overflow-hidden ${
+        className={`print-document-container ${
+          documentBundle === 'quote_only' ? 'single-page-only' : ''
+        } max-w-[210mm] min-h-[292mm] print:max-w-none print:w-full print:min-h-[279mm] print:max-h-[282mm] mx-auto bg-white shadow-2xl rounded-2xl print:rounded-none print:shadow-none print:!p-0 print:!m-0 border border-stone-200 print:border-none text-stone-900 text-right font-sans flex flex-col justify-between overflow-hidden ${
           viewMode === 'simplified' ? 'p-0' : 'p-5 sm:p-7'
         }`}
       >
@@ -1474,6 +1622,43 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({
           </>
         )}
       </div>
+      )}
+
+      {/* Visual Screen Divider Between Quotation & Attached Contract */}
+      {documentBundle === 'quote_and_contract' && (
+        <div className="max-w-[210mm] mx-auto my-6 bg-[#f3f0e8] border border-[#d6c9ae] rounded-xl px-4 py-3 flex flex-wrap items-center justify-between gap-3 no-print">
+          <div className="flex items-center gap-2 text-xs text-stone-800">
+            <FileSignature className="w-4 h-4 text-[#a6926b] shrink-0" />
+            <span>
+              <strong>المرفق الرسمي:</strong> {activeContract.contractTitle} — يُطبع تلقائياً بدءاً من الصفحة التالية بتنسيق العقد المعتمد
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsContractEditorOpen(true)}
+            className="text-xs font-bold bg-[#3a3c3e] hover:bg-stone-800 text-white px-3 py-1.5 rounded-lg transition cursor-pointer"
+          >
+            تعديل بنود العقد
+          </button>
+        </div>
+      )}
+
+      {/* Attached Smart Contract Printable Document */}
+      {(documentBundle === 'quote_and_contract' || documentBundle === 'contract_only') && (
+        <ContractPrintView
+          contract={activeContract}
+          clientInfo={clientInfo}
+          items={items}
+          subtotal={subtotal}
+          discountAmount={discountAmount}
+          taxAmount={taxAmount}
+          grandTotal={grandTotal}
+          milestones={milestones}
+          startsOnNewPage={documentBundle === 'quote_and_contract'}
+          onEditContract={() => setIsContractEditorOpen(true)}
+          onEditMilestones={() => setIsEditMilestonesOpen(true)}
+        />
+      )}
 
       {/* Google Doc Export & Share Modal */}
       <GoogleDocExportModal
@@ -1495,6 +1680,19 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({
         clientInfo={clientInfo}
         grandTotal={grandTotal}
         onSaveMilestones={handleSaveMilestones}
+      />
+
+      {/* Smart Contract Editor Modal */}
+      <ContractEditorModal
+        isOpen={isContractEditorOpen}
+        onClose={() => setIsContractEditorOpen(false)}
+        clientInfo={clientInfo}
+        items={items}
+        onSaveContract={handleSaveContractData}
+        onOpenEditMilestones={() => {
+          setIsContractEditorOpen(false);
+          setIsEditMilestonesOpen(true);
+        }}
       />
     </div>
   );

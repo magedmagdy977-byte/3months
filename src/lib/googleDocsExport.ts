@@ -7,6 +7,7 @@ import {
   getPaymentMilestones,
 } from '../data/masterTemplateDefaults';
 import { getGoogleAccessToken } from './firebase';
+import { getCompanyProfile, resolveCompanyId } from '../data/companies';
 
 export interface GoogleDocExportResult {
   documentId: string;
@@ -79,6 +80,13 @@ export function generateQuotationHtml(clientInfo: ClientInfo, items: QuotationIt
   const areaDetails = getQuotationAreaDetails(clientInfo, items);
   const milestones = getPaymentMilestones(clientInfo.paymentScheduleType, grandTotal, clientInfo.customMilestones);
 
+  const companyId = resolveCompanyId(clientInfo.companyId);
+  const company = getCompanyProfile(companyId);
+  const isArq = companyId === 'arq';
+  const primaryDark = isArq ? '#1c1917' : '#2d2a4a';
+  const primaryBrand = company.colors.primary;
+  const accentBrand = company.colors.accent;
+
   const activeExclusions: string[] = [];
   if (clientInfo.exclusions?.excludeGovFees) {
     activeExclusions.push(EXCLUSION_CLAUSES.excludeGovFees);
@@ -108,7 +116,7 @@ export function generateQuotationHtml(clientInfo: ClientInfo, items: QuotationIt
     .header-table {
       width: 100%;
       border-collapse: collapse;
-      border-bottom: 2px solid #2d2a4a;
+      border-bottom: 2px solid ${primaryDark};
       padding-bottom: 8px;
       margin-bottom: 8px;
     }
@@ -120,12 +128,12 @@ export function generateQuotationHtml(clientInfo: ClientInfo, items: QuotationIt
     .company-title {
       font-size: 18px;
       font-weight: 900;
-      color: #2d2a4a;
+      color: ${primaryDark};
       margin: 0;
     }
     .company-subtitle {
       font-size: 11px;
-      color: #e37725;
+      color: ${accentBrand};
       font-weight: bold;
       margin-top: 1px;
     }
@@ -152,7 +160,7 @@ export function generateQuotationHtml(clientInfo: ClientInfo, items: QuotationIt
     .main-title {
       font-size: 18px;
       font-weight: 900;
-      color: #2d2a4a;
+      color: ${primaryDark};
       margin: 0;
     }
     .sub-title {
@@ -164,8 +172,8 @@ export function generateQuotationHtml(clientInfo: ClientInfo, items: QuotationIt
     .section-header {
       font-size: 11.5px;
       font-weight: 900;
-      color: #2d2a4a;
-      border-right: 4px solid #e37725;
+      color: ${primaryDark};
+      border-right: 4px solid ${accentBrand};
       padding-right: 6px;
       margin-top: 8px;
       margin-bottom: 4px;
@@ -183,14 +191,14 @@ export function generateQuotationHtml(clientInfo: ClientInfo, items: QuotationIt
       vertical-align: top;
     }
     table.data-table th {
-      background-color: #2d2a4a;
+      background-color: ${primaryDark};
       color: #ffffff;
       font-weight: bold;
     }
     .info-label {
       background-color: #f3f4f6;
       font-weight: bold;
-      color: #2d2a4a;
+      color: ${primaryDark};
       width: 15%;
       font-size: 10px;
     }
@@ -205,7 +213,7 @@ export function generateQuotationHtml(clientInfo: ClientInfo, items: QuotationIt
       margin-bottom: 8px;
     }
     .total-row {
-      background-color: #2d2a4a !important;
+      background-color: ${primaryDark} !important;
       color: #ffffff !important;
       font-weight: 900 !important;
       font-size: 11.5px !important;
@@ -236,7 +244,7 @@ export function generateQuotationHtml(clientInfo: ClientInfo, items: QuotationIt
       font-family: monospace;
       font-size: 11px;
       font-weight: bold;
-      color: #e37725;
+      color: ${accentBrand};
       margin-top: 2px;
     }
     .signatures-table {
@@ -269,17 +277,17 @@ export function generateQuotationHtml(clientInfo: ClientInfo, items: QuotationIt
   <table class="header-table">
     <tr>
       <td style="width: 68%;">
-        <h1 class="company-title">مجموعة شركات الرؤية المضيئة للاستشارات الهندسية والتصميم</h1>
-        <div class="company-subtitle">LUMINOUS VISION Engineering & Design Consultancy</div>
+        <h1 class="company-title">${company.fullTitleAr}</h1>
+        <div class="company-subtitle">${company.englishFull}</div>
         <div class="company-creds">
-          تصميم معماري وإنشائي وكهروميكانيكي • كود البناء السعودي SBC • رخص بلدي • إشراف هندسي • دفاع مدني
+          ${company.credentialsLineAr}
         </div>
       </td>
       <td style="width: 32%;" class="proposal-meta">
         <div>رقم العرض: <strong>${clientInfo.proposalNumber}</strong></div>
         <div>التاريخ: <strong>${clientInfo.date}</strong></div>
         <div>إعداد المهندس: <strong>${cleanEngineerName(clientInfo.preparedBy)}</strong></div>
-        <div style="color: #e37725; font-weight: bold;">صلاحية العرض: ${clientInfo.validityDays || 30} يوماً</div>
+        <div style="color: ${accentBrand}; font-weight: bold;">صلاحية العرض: ${clientInfo.validityDays || 30} يوماً</div>
       </td>
     </tr>
   </table>
@@ -320,8 +328,8 @@ export function generateQuotationHtml(clientInfo: ClientInfo, items: QuotationIt
   <!-- ثانيًا: مقدمة العرض -->
   <div class="section-header">ثانيًا: مقدمة العرض</div>
   <div class="intro-box">
-    السيد/ <strong style="color: #433c71;">${clientInfo.clientName || 'العميل المحترم'}</strong> المحترم،
-    بناءً على طلبكم، يسر شركة <strong>الرؤية المضيئة للاستشارات الهندسية</strong> أن تقدم لسعادتكم عرض السعر الخاص بأعمال 
+    السيد/ <strong style="color: ${primaryBrand};">${clientInfo.clientName || 'العميل المحترم'}</strong> المحترم،
+    بناءً على طلبكم، يسر <strong>${company.fullNameAr}</strong> أن تقدم لسعادتكم عرض السعر الخاص بأعمال 
     <strong>${clientInfo.serviceType}</strong> لمشروع <strong>${clientInfo.buildingType}</strong>، والكائن بمدينة 
     <strong>${clientInfo.projectCity}</strong>، حي <strong>${clientInfo.district || 'الموضح أعلاه'}</strong>، على قطعة الأرض رقم 
     <strong>${clientInfo.plotNumber || '—'}</strong> من المخطط رقم <strong>${clientInfo.planNumber || '—'}</strong>، 
@@ -341,11 +349,11 @@ export function generateQuotationHtml(clientInfo: ClientInfo, items: QuotationIt
             rows.push(`
               <tr>
                 <td style="width: 50%; background-color: #f9fafb;">
-                  <strong style="color: #433c71;">${i + 1}. ${first.name}:</strong>
+                  <strong style="color: ${primaryBrand};">${i + 1}. ${first.name}:</strong>
                   <div style="color: #333333; font-size: 10px; margin-top: 2px;">${first.description}</div>
                 </td>
                 <td style="width: 50%; background-color: #f9fafb;">
-                  <strong style="color: #433c71;">${i + 2}. ${second.name}:</strong>
+                  <strong style="color: ${primaryBrand};">${i + 2}. ${second.name}:</strong>
                   <div style="color: #333333; font-size: 10px; margin-top: 2px;">${second.description}</div>
                 </td>
               </tr>
@@ -354,7 +362,7 @@ export function generateQuotationHtml(clientInfo: ClientInfo, items: QuotationIt
             rows.push(`
               <tr>
                 <td colspan="2" style="background-color: #f9fafb;">
-                  <strong style="color: #433c71;">${i + 1}. ${first.name}:</strong>
+                  <strong style="color: ${primaryBrand};">${i + 1}. ${first.name}:</strong>
                   <div style="color: #333333; font-size: 10px; margin-top: 2px;">${first.description}</div>
                 </td>
               </tr>
@@ -371,7 +379,7 @@ export function generateQuotationHtml(clientInfo: ClientInfo, items: QuotationIt
   <table class="data-table">
     <tr>
       <td style="width: 50%; background-color: #f9fafb;">
-        <div style="font-weight: bold; color: #2d2a4a; margin-bottom: 3px;">التزامات المالك والأعمال المستثناة:</div>
+        <div style="font-weight: bold; color: ${primaryDark}; margin-bottom: 3px;">التزامات المالك والأعمال المستثناة:</div>
         <div style="font-size: 10px; line-height: 1.45;">
           • ${GENERAL_OWNER_OBLIGATIONS[0]}<br>
           • ${GENERAL_OWNER_OBLIGATIONS[1]}<br>
@@ -397,7 +405,7 @@ export function generateQuotationHtml(clientInfo: ClientInfo, items: QuotationIt
         </div>
       </td>
       <td style="width: 50%; background-color: #f9fafb;">
-        <div style="font-weight: bold; color: #2d2a4a; margin-bottom: 3px;">المدد الزمنية والتعديلات والملكية الفكرية:</div>
+        <div style="font-weight: bold; color: ${primaryDark}; margin-bottom: 3px;">المدد الزمنية والتعديلات والملكية الفكرية:</div>
         <div style="font-size: 10px; line-height: 1.45;">
           • <strong>مدة التنفيذ:</strong> ${clientInfo.executionDurationDays || 45} يوم عمل من سداد الدفعة واعتماد المخططات المعمارية والواجهات.<br>
           • <strong>الاعتمادات:</strong> ${clientInfo.revisionCountText || 'تعديلان (2)'}، ويعتمد كل طور قبل التالي.<br>
@@ -455,13 +463,13 @@ export function generateQuotationHtml(clientInfo: ClientInfo, items: QuotationIt
               (m) => `
             <tr>
               <td style="font-weight: bold;">${m.title}</td>
-              <td style="text-align: left; font-weight: bold; color: #433c71;">${formatSAR(m.amount)}</td>
+              <td style="text-align: left; font-weight: bold; color: ${primaryBrand};">${formatSAR(m.amount)}</td>
             </tr>`
             )
             .join('')}
         </table>
         <div class="bank-box">
-          <div><strong>البنك:</strong> ${clientInfo.bankDetails?.bankName || 'البنك السعودي للاستثمار'} (${clientInfo.bankDetails?.accountName || 'شركة مجموعة الرؤية المضيئة للاستشارات الهندسية'})</div>
+          <div><strong>البنك:</strong> ${clientInfo.bankDetails?.bankName || company.defaultBankDetails.bankName} (${clientInfo.bankDetails?.accountName || company.defaultBankDetails.accountName})</div>
           <div class="iban">IBAN: ${clientInfo.bankDetails?.iban || '-'}</div>
           <div style="font-size: 9.5px; color: #92400e; font-weight: bold;">صلاحية العرض: ${clientInfo.validityDays || 30} يوماً من تاريخ إصداره.</div>
         </div>
@@ -479,10 +487,18 @@ export function generateQuotationHtml(clientInfo: ClientInfo, items: QuotationIt
         <div style="margin-top: 3px;">التاريخ: ..... / ..... / 2026 م</div>
       </td>
       <td style="text-align: left;">
-        <div style="font-size: 11.5px; font-weight: 900; color: #433c71; margin-bottom: 4px;">اعتماد شركة الرؤية المضيئة للاستشارات الهندسية:</div>
+        <div style="font-size: 11.5px; font-weight: 900; color: ${primaryBrand}; margin-bottom: 4px;">اعتماد ${company.fullNameAr}:</div>
         <div>إعداد المهندس: <strong>${cleanEngineerName(clientInfo.preparedBy)}</strong></div>
         <div style="margin-top: 4px;">
-          <img src="/official-seal.png" alt="الختم المعتمد" style="height: 55px; width: auto;" onerror="this.style.display='none'" />
+          ${
+            isArq
+              ? `<div style="display:inline-block; border: 2px solid #1c1917; border-radius: 6px; padding: 4px 10px; text-align: center; font-size: 9px; color: #1c1917;">
+                  <div style="font-weight: 900;">${company.fullNameAr}</div>
+                  <div style="font-size: 8px; letter-spacing: 1px;">ARQ ENGINEERING CONSULTANCY</div>
+                  <div style="font-size: 8px; color: #57534e;">س.ت: ${company.crNumber}</div>
+                </div>`
+              : `<img src="/official-seal.png" alt="الختم المعتمد" style="height: 55px; width: auto;" onerror="this.style.display='none'" />`
+          }
         </div>
       </td>
     </tr>
@@ -490,7 +506,7 @@ export function generateQuotationHtml(clientInfo: ClientInfo, items: QuotationIt
 
   <!-- FOOTER -->
   <div class="doc-footer">
-    مجموعة شركات الرؤية المضيئة للاستشارات الهندسية والتصميم • عرض سعر رقم ${clientInfo.proposalNumber} • س.ت: 1010788646 • وثيقة عرض سعر معتمدة رسمياً
+    ${company.fullTitleAr} • عرض سعر رقم ${clientInfo.proposalNumber} • س.ت: ${company.crNumber} • وثيقة عرض سعر معتمدة رسمياً
   </div>
 
 </body>
@@ -641,12 +657,13 @@ function buildPlainTextQuotation(clientInfo: ClientInfo, items: QuotationItem[])
   const amountAfterDiscount = subtotal - discountAmount;
   const taxAmount = clientInfo.includeTax ? Math.round(amountAfterDiscount * 0.15) : 0;
   const grandTotal = amountAfterDiscount + taxAmount;
+  const company = getCompanyProfile(clientInfo.companyId);
   const activeScopeItems = getActiveScopeItemsForQuotation(clientInfo, items);
   const milestones = getPaymentMilestones(clientInfo.paymentScheduleType, grandTotal, clientInfo.customMilestones);
 
   return [
-    `مجموعة شركات الرؤية المضيئة للاستشارات الهندسية والتصميم`,
-    `LUMINOUS VISION Engineering & Design Consultancy`,
+    company.fullTitleAr,
+    company.englishFull,
     `عرض سعر معتمد — النموذج الهندسي الموحد`,
     `رقم العرض: ${clientInfo.proposalNumber} | التاريخ: ${clientInfo.date} | إعداد المهندس: ${cleanEngineerName(clientInfo.preparedBy)}`,
     `----------------------------------------------------------------------`,
@@ -664,7 +681,7 @@ function buildPlainTextQuotation(clientInfo: ClientInfo, items: QuotationItem[])
     `----------------------------------------------------------------------`,
     `ثانيًا: مقدمة العرض والخطاب الرسمي:`,
     `السيد/ ${clientInfo.clientName || 'العميل المحترم'} المحترم،`,
-    `بناءً على طلبكم، يسر شركة الرؤية المضيئة للاستشارات الهندسية أن تقدم لسعادتكم عرض السعر الخاص بأعمال ${clientInfo.serviceType} لمشروع ${clientInfo.buildingType}، والكائن بمدينة ${clientInfo.projectCity}، حي ${clientInfo.district || 'الموضح أعلاه'}، على قطعة الأرض رقم ${clientInfo.plotNumber || '—'} من المخطط رقم ${clientInfo.planNumber || '—'}، والبالغ إجمالي مساحة أرض المشروع ${formatNumber(clientInfo.landArea || 0)} م²، وفق نطاق الأعمال والشروط الموضحة أدناه.`,
+    `بناءً على طلبكم، يسر ${company.fullNameAr} أن تقدم لسعادتكم عرض السعر الخاص بأعمال ${clientInfo.serviceType} لمشروع ${clientInfo.buildingType}، والكائن بمدينة ${clientInfo.projectCity}، حي ${clientInfo.district || 'الموضح أعلاه'}، على قطعة الأرض رقم ${clientInfo.plotNumber || '—'} من المخطط رقم ${clientInfo.planNumber || '—'}، والبالغ إجمالي مساحة أرض المشروع ${formatNumber(clientInfo.landArea || 0)} م²، وفق نطاق الأعمال والشروط الموضحة أدناه.`,
     `----------------------------------------------------------------------`,
     `ثالثًا: نطاق أعمال الاستشاري المعتمد (${activeScopeItems.length} وحدات):`,
     ...activeScopeItems.map((s, idx) => `${idx + 1}. ${s.name}:\n   ${s.description}`),
@@ -690,14 +707,14 @@ function buildPlainTextQuotation(clientInfo: ClientInfo, items: QuotationItem[])
     `- الملكية الفكرية: المخرجات خاضعة لحقوق الاستخدام لموقع المشروع حصراً.`,
     `----------------------------------------------------------------------`,
     `ثامنًا: بيانات الحساب البنكي الرسمي:`,
-    `- البنك: ${clientInfo.bankDetails?.bankName || 'مصرف الراجحي'}`,
-    `- اسم الحساب: ${clientInfo.bankDetails?.accountName || 'شركة مجموعة الرؤية المضيئة للاستشارات الهندسية'}`,
+    `- البنك: ${clientInfo.bankDetails?.bankName || company.defaultBankDetails.bankName}`,
+    `- اسم الحساب: ${clientInfo.bankDetails?.accountName || company.defaultBankDetails.accountName}`,
     `- IBAN: ${clientInfo.bankDetails?.iban || '-'}`,
     `- صلاحية العرض: ${clientInfo.validityDays || 30} يوماً من تاريخ إصداره.`,
     `----------------------------------------------------------------------`,
     `تاسعًا: التوقيعات والاعتماد:`,
     `اعتماد وقبول العميل: .......................................`,
-    `اعتماد شركة الرؤية المضيئة للاستشارات الهندسية: ${cleanEngineerName(clientInfo.preparedBy)}`,
+    `اعتماد ${company.fullNameAr}: ${cleanEngineerName(clientInfo.preparedBy)}`,
   ]
     .filter(Boolean)
     .join('\n');

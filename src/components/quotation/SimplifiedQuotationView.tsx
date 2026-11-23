@@ -1,6 +1,7 @@
 import React from 'react';
 import { ClientInfo, PaymentMilestone, QuotationItem } from '../../types';
-import { LuminousLogo } from '../LuminousLogo';
+import { CompanyLogo } from '../CompanyLogo';
+import { getCompanyProfile, resolveCompanyId } from '../../data/companies';
 import { getActiveScopeItemsForQuotation } from '../../data/masterTemplateDefaults';
 import { getQuotationAreaDetails } from '../../utils/formatters';
 import { FileEdit } from 'lucide-react';
@@ -227,25 +228,34 @@ const RibbonHeader: React.FC<{
   icon: React.ReactNode;
   widthClass?: string;
   className?: string;
-}> = ({ title, icon, widthClass = 'min-w-[215px] print:min-w-[190px]', className = '' }) => {
+  bgColor?: string;
+  accentColor?: string;
+}> = ({
+  title,
+  icon,
+  widthClass = 'min-w-[215px] print:min-w-[190px]',
+  className = '',
+  bgColor = '#2C3E4C',
+  accentColor = '#F0A429',
+}) => {
   return (
     <div
       className={`relative inline-flex items-stretch h-[35px] print:h-[31px] select-none ${widthClass} ${className}`}
     >
-      {/* Golden-amber slanted edge layer */}
+      {/* Slanted accent edge layer */}
       <div
         className="w-full h-full flex items-stretch"
         style={{
-          backgroundColor: '#F0A429',
+          backgroundColor: accentColor,
           clipPath: 'polygon(16px 0%, 100% 0%, 100% 100%, 0% 100%)',
           borderTopRightRadius: '11px',
         }}
       >
-        {/* Main deep slate-navy ribbon body */}
+        {/* Main ribbon body */}
         <div
           className="w-full h-full flex items-center gap-2.5 pr-4 pl-9 text-white"
           style={{
-            backgroundColor: '#2C3E4C',
+            backgroundColor: bgColor,
             marginLeft: '10px',
             clipPath: 'polygon(16px 0%, 100% 0%, 100% 100%, 0% 100%)',
             borderTopRightRadius: '11px',
@@ -382,6 +392,11 @@ export const SimplifiedQuotationView: React.FC<SimplifiedQuotationViewProps> = (
   milestones,
   onEditMilestones,
 }) => {
+  const activeCompanyId = resolveCompanyId(clientInfo.companyId);
+  const company = getCompanyProfile(activeCompanyId);
+  const isArq = activeCompanyId === 'arq';
+  const ribbonBg = company.colors.ribbonBg;
+  const ribbonAccent = company.colors.ribbonAccent;
   const activeScopeItems = getActiveScopeItemsForQuotation(clientInfo, items);
   const areaDetails = getQuotationAreaDetails(clientInfo, items);
   const { line1, line2 } = getCleanSubtitleLines(clientInfo);
@@ -442,34 +457,45 @@ export const SimplifiedQuotationView: React.FC<SimplifiedQuotationViewProps> = (
          ========================================================================= */}
       <header className="relative z-10 flex flex-col items-start pt-1 print:pt-0.5 pb-3 print:pb-2">
         {/* Brand Lockup (Top-Right in RTL) */}
-        <div className="flex items-center gap-3">
-          <div className="h-[58px] print:h-[52px] flex items-center justify-center shrink-0">
-            <LuminousLogo variant="icon" className="h-full w-auto" />
+        {isArq ? (
+          <div className="flex items-center gap-3">
+            <div className="h-[64px] print:h-[58px] flex items-center justify-center shrink-0">
+              <CompanyLogo companyId="arq" variant="full" className="h-full w-auto" color="#1c1917" />
+            </div>
           </div>
-          <div className="flex flex-col text-right leading-tight">
-            <span className="text-[17px] print:text-[15.5px] font-black text-[#263746] tracking-tight">
-              مجموعة شركات الرؤية المضيئة
-            </span>
-            <span
-              dir="ltr"
-              className="inline-flex items-center justify-end gap-1.5 text-[11.5px] print:text-[10.5px] font-black tracking-[0.22em] mt-0.5"
-            >
-              <span className="text-[#263746]">LUMINOUS</span>
-              <span className="text-[#E37725]">VISION</span>
-            </span>
-            <span className="text-[11.5px] print:text-[10.5px] font-bold text-[#3D4D5C] mt-0.5">
-              للاستشارات الهندسية والتصميم
-            </span>
+        ) : (
+          <div className="flex items-center gap-3">
+            <div className="h-[58px] print:h-[52px] flex items-center justify-center shrink-0">
+              <CompanyLogo companyId="luminous" variant="icon" className="h-full w-auto" />
+            </div>
+            <div className="flex flex-col text-right leading-tight">
+              <span className="text-[17px] print:text-[15.5px] font-black text-[#263746] tracking-tight">
+                {company.groupNameAr}
+              </span>
+              <span
+                dir="ltr"
+                className="inline-flex items-center justify-end gap-1.5 text-[11.5px] print:text-[10.5px] font-black tracking-[0.22em] mt-0.5"
+              >
+                <span className="text-[#263746]">LUMINOUS</span>
+                <span className="text-[#E37725]">VISION</span>
+              </span>
+              <span className="text-[11.5px] print:text-[10.5px] font-bold text-[#3D4D5C] mt-0.5">
+                {company.subtitleAr}
+              </span>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Main Hero Title & Subtitle Block */}
         <div className="mt-5 print:mt-4 pr-1 sm:pr-4 max-w-[66%]">
           <h1 className="text-[36px] sm:text-[40px] print:text-[34px] font-black text-[#263746] leading-none tracking-tight">
             عرض سعر
           </h1>
-          {/* Short warm gold accent rule under title */}
-          <div className="w-14 h-[3.5px] bg-[#F0A429] rounded-full mt-2.5 print:mt-2" />
+          {/* Short warm accent rule under title */}
+          <div
+            className="w-14 h-[3.5px] rounded-full mt-2.5 print:mt-2"
+            style={{ backgroundColor: ribbonAccent }}
+          />
 
           {/* Subtitle Row with Document + Orange Pencil Icon */}
           <div className="mt-3 print:mt-2.5 flex items-center gap-3.5">
@@ -598,6 +624,8 @@ export const SimplifiedQuotationView: React.FC<SimplifiedQuotationViewProps> = (
         <div className="flex justify-start">
           <RibbonHeader
             title="نطاق الأعمال"
+            bgColor={ribbonBg}
+            accentColor={ribbonAccent}
             icon={
               <svg viewBox="0 0 24 24" className="w-4.5 h-4.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="5" y="4" width="14" height="17" rx="2" />
@@ -649,6 +677,8 @@ export const SimplifiedQuotationView: React.FC<SimplifiedQuotationViewProps> = (
             <RibbonHeader
               title="العرض المالي"
               widthClass="w-[74%] min-w-[210px]"
+              bgColor={ribbonBg}
+              accentColor={ribbonAccent}
               icon={
                 <svg viewBox="0 0 24 24" className="w-4.5 h-4.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                   <ellipse cx="9.5" cy="7" rx="5.5" ry="2.2" />
@@ -732,6 +762,8 @@ export const SimplifiedQuotationView: React.FC<SimplifiedQuotationViewProps> = (
             <RibbonHeader
               title="المدة والتعديلات"
               widthClass="w-[78%] min-w-[195px]"
+              bgColor={ribbonBg}
+              accentColor={ribbonAccent}
               icon={
                 <svg viewBox="0 0 24 24" className="w-4.5 h-4.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="3.5" y="4.5" width="17" height="16" rx="2" />
@@ -800,6 +832,8 @@ export const SimplifiedQuotationView: React.FC<SimplifiedQuotationViewProps> = (
         <div className="flex items-end justify-between">
           <RibbonHeader
             title="جدول الدفعات"
+            bgColor={ribbonBg}
+            accentColor={ribbonAccent}
             icon={
               <svg viewBox="0 0 24 24" className="w-4.5 h-4.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="3" y="5.5" width="18" height="13" rx="2" />
@@ -965,26 +999,32 @@ export const SimplifiedQuotationView: React.FC<SimplifiedQuotationViewProps> = (
         <div className="hidden sm:block print:block flex-1 border-b border-[#B8C0C8] mb-3.5" />
 
         {/* Left: Compact Brand Logo Lockup */}
-        <div className="flex items-center gap-2.5 shrink-0 pb-0.5">
-          <div className="flex flex-col text-left leading-tight">
-            <span className="text-[13px] print:text-[11.5px] font-black text-[#263746]">
-              الرؤية المضيئة
-            </span>
-            <span
-              dir="ltr"
-              className="inline-flex items-center justify-end gap-1 text-[8.5px] print:text-[7.5px] font-black tracking-[0.12em] mt-0.5"
-            >
-              <span className="text-[#263746]">LUMINOUS</span>
-              <span className="text-[#E37725]">VISION</span>
-            </span>
-            <span className="text-[8.5px] print:text-[7.5px] font-bold text-[#5A6773] mt-0.5">
-              للاستشارات والتصميم
-            </span>
+        {isArq ? (
+          <div className="flex items-center shrink-0 pb-0.5">
+            <CompanyLogo companyId="arq" variant="full" className="h-12 print:h-11 w-auto" color="#1c1917" />
           </div>
-          <div className="h-10 print:h-9 flex items-center justify-center shrink-0">
-            <LuminousLogo variant="icon" className="h-full w-auto" />
+        ) : (
+          <div className="flex items-center gap-2.5 shrink-0 pb-0.5">
+            <div className="flex flex-col text-left leading-tight">
+              <span className="text-[13px] print:text-[11.5px] font-black text-[#263746]">
+                {company.shortNameAr}
+              </span>
+              <span
+                dir="ltr"
+                className="inline-flex items-center justify-end gap-1 text-[8.5px] print:text-[7.5px] font-black tracking-[0.12em] mt-0.5"
+              >
+                <span className="text-[#263746]">LUMINOUS</span>
+                <span className="text-[#E37725]">VISION</span>
+              </span>
+              <span className="text-[8.5px] print:text-[7.5px] font-bold text-[#5A6773] mt-0.5">
+                للاستشارات والتصميم
+              </span>
+            </div>
+            <div className="h-10 print:h-9 flex items-center justify-center shrink-0">
+              <CompanyLogo companyId="luminous" variant="icon" className="h-full w-auto" />
+            </div>
           </div>
-        </div>
+        )}
       </footer>
     </div>
   );

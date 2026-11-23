@@ -13,6 +13,7 @@ import {
   getArabicDayName,
   resolveActiveContractData,
 } from '../../data/smartContractEngine';
+import { getCompanyProfile } from '../../data/companies';
 import { formatSAR } from '../../utils/formatters';
 import { getPaymentMilestones } from '../../data/masterTemplateDefaults';
 import {
@@ -1349,7 +1350,9 @@ export const ContractEditorModal: React.FC<ContractEditorModalProps> = ({
                     onChange={(e) => updateDraft({ showCompanySeal: e.target.checked })}
                     className="w-4 h-4 accent-amber-600 rounded cursor-pointer"
                   />
-                  <span>إظهار الختم الرسمي لشركة الرؤية المضيئة في خانة الطرف الثاني</span>
+                  <span>
+                    إظهار الختم الرسمي لـ {getCompanyProfile(clientInfo.companyId).fullNameAr} في خانة الطرف الثاني
+                  </span>
                 </label>
               </div>
             </div>

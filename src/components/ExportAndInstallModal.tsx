@@ -19,17 +19,23 @@ import {
   FileEdit,
 } from 'lucide-react';
 import { usePWAInstall } from '../hooks/usePWAInstall';
-import { LuminousLogo } from './LuminousLogo';
+import { CompanyLogo } from './CompanyLogo';
+import { CompanyId } from '../types';
+import { getCompanyProfile, resolveCompanyId } from '../data/companies';
 
 interface ExportAndInstallModalProps {
   isOpen: boolean;
   onClose: () => void;
+  companyId?: CompanyId;
 }
 
 export const ExportAndInstallModal: React.FC<ExportAndInstallModalProps> = ({
   isOpen,
   onClose,
+  companyId,
 }) => {
+  const activeCompanyId = resolveCompanyId(companyId);
+  const company = getCompanyProfile(activeCompanyId);
   const { isInstallable, isInstalled, isIOS, isAndroid, install } = usePWAInstall();
   const [activeTab, setActiveTab] = useState<'mobile' | 'desktop' | 'docs' | 'code'>('mobile');
   const [copied, setCopied] = useState(false);
@@ -77,8 +83,12 @@ export const ExportAndInstallModal: React.FC<ExportAndInstallModalProps> = ({
         {/* Header */}
         <div className="bg-stone-900 text-white p-6 relative flex items-center justify-between border-b border-stone-800">
           <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-white p-1.5 flex items-center justify-center shrink-0 border border-stone-700 shadow-xs">
-              <LuminousLogo variant="icon" className="w-full h-full" />
+            <div
+              className={`h-12 rounded-2xl bg-white p-1.5 flex items-center justify-center shrink-0 border border-stone-700 shadow-xs ${
+                activeCompanyId === 'arq' ? 'w-16' : 'w-12'
+              }`}
+            >
+              <CompanyLogo companyId={activeCompanyId} variant="icon" className="w-full h-full" />
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -247,7 +257,7 @@ export const ExportAndInstallModal: React.FC<ExportAndInstallModalProps> = ({
                         اختر <strong>«إضافة إلى الشاشة الرئيسية»</strong>{' '}
                         <PlusSquare className="w-3.5 h-3.5 inline text-stone-700 mx-0.5" /> (Add to Home Screen).
                       </li>
-                      <li>اضغط <strong>إضافة (Add)</strong>، وسيظهر التطبيق بأيقونة الرؤية المضيئة المعتمدة على شاشتك.</li>
+                      <li>اضغط <strong>إضافة (Add)</strong>، وسيظهر التطبيق بأيقونة {company.shortNameAr} المعتمدة على شاشتك.</li>
                     </ol>
                   </div>
 

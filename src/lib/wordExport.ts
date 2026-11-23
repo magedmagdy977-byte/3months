@@ -24,6 +24,7 @@ import {
   formatContractDisplayDate,
   resolveActiveContractData,
 } from '../data/smartContractEngine';
+import { getCompanyProfile, resolveCompanyId } from '../data/companies';
 
 const cleanEngineerName = (name?: string) => {
   if (!name) return 'م. ماجد';
@@ -78,6 +79,91 @@ async function fetchImageBuffer(url: string): Promise<Uint8Array | null> {
     if (!res.ok) return null;
     const arrayBuf = await res.arrayBuffer();
     return new Uint8Array(arrayBuf);
+  } catch {
+    return null;
+  }
+}
+
+// Render an SVG URL (e.g. /arq-logo.svg) onto an offscreen canvas to obtain a crisp PNG Uint8Array for docx ImageRun
+async function renderSvgUrlToPngBuffer(
+  svgUrl: string,
+  width: number,
+  height: number
+): Promise<Uint8Array | null> {
+  if (typeof document === 'undefined') return null;
+  try {
+    const res = await fetch(svgUrl);
+    if (!res.ok) return null;
+    const svgText = await res.text();
+    const svgBlob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
+    const objectUrl = URL.createObjectURL(svgBlob);
+
+    try {
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = reject;
+        image.src = objectUrl;
+      });
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return null;
+      ctx.clearRect(0, 0, width, height);
+      ctx.drawImage(img, 0, 0, width, height);
+
+      const pngBlob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob((b) => resolve(b), 'image/png')
+      );
+      if (!pngBlob) return null;
+      const buf = await pngBlob.arrayBuffer();
+      return new Uint8Array(buf);
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
+  } catch {
+    return null;
+  }
+}
+
+// Generate a crisp architectural stamp PNG for ARQ Engineering Consultancy
+async function renderArqSealPngBuffer(crNumber: string): Promise<Uint8Array | null> {
+  if (typeof document === 'undefined') return null;
+  try {
+    const svgMarkup = `<svg xmlns="http://www.w3.org/2000/svg" width="360" height="170" viewBox="0 0 360 170">
+      <rect x="6" y="6" width="348" height="158" rx="14" fill="none" stroke="#1c1917" stroke-width="5"/>
+      <rect x="14" y="14" width="332" height="142" rx="10" fill="none" stroke="#a6926b" stroke-width="2" stroke-dasharray="6 4"/>
+      <text x="180" y="54" text-anchor="middle" fill="#1c1917" font-family="Cairo, Arial, sans-serif" font-size="22" font-weight="900">شركة أرك للاستشارات الهندسية</text>
+      <text x="180" y="88" text-anchor="middle" fill="#1c1917" font-family="Arial, sans-serif" font-size="18" font-weight="800" letter-spacing="2">ARQ ENGINEERING CONSULTANCY</text>
+      <line x1="65" y1="104" x2="295" y2="104" stroke="#a6926b" stroke-width="2"/>
+      <text x="180" y="130" text-anchor="middle" fill="#44403c" font-family="Cairo, Arial, sans-serif" font-size="14" font-weight="700">سجل تجاري: ${crNumber} • الرياض</text>
+      <text x="180" y="150" text-anchor="middle" fill="#a6926b" font-family="Cairo, Arial, sans-serif" font-size="12" font-weight="700">ختم واعتماد رسمي</text>
+    </svg>`;
+    const svgBlob = new Blob([svgMarkup], { type: 'image/svg+xml;charset=utf-8' });
+    const objectUrl = URL.createObjectURL(svgBlob);
+    try {
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = reject;
+        image.src = objectUrl;
+      });
+      const canvas = document.createElement('canvas');
+      canvas.width = 360;
+      canvas.height = 170;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return null;
+      ctx.drawImage(img, 0, 0, 360, 170);
+      const pngBlob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob((b) => resolve(b), 'image/png')
+      );
+      if (!pngBlob) return null;
+      return new Uint8Array(await pngBlob.arrayBuffer());
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
   } catch {
     return null;
   }
@@ -138,10 +224,21 @@ export async function generateWordDocumentBlob(
     right: noBorder,
   };
 
-  // Pre-load images if available in browser
+  const companyId = resolveCompanyId(clientInfo.companyId);
+  const company = getCompanyProfile(companyId);
+  const isArq = companyId === 'arq';
+  const primaryHex = company.colors.primaryHex;
+  const accentHex = company.colors.accentHex;
+  const darkBannerHex = isArq ? '26282A' : '2D2A4A';
+
+  // Pre-load company-specific images if available in browser
   const [logoBuffer, sealBuffer] = await Promise.all([
-    fetchImageBuffer('/apple-touch-icon.png'),
-    fetchImageBuffer('/official-seal.png'),
+    isArq
+      ? renderSvgUrlToPngBuffer('/arq-logo.svg', 360, 204)
+      : fetchImageBuffer('/apple-touch-icon.png'),
+    isArq
+      ? renderArqSealPngBuffer(company.crNumber)
+      : fetchImageBuffer('/official-seal.png'),
   ]);
 
   // Standard section header creator matching official brand (compact single-page spacing)
@@ -155,13 +252,13 @@ export async function generateWordDocumentBlob(
           text: '▌ ',
           bold: true,
           size: 19,
-          color: 'E37725',
+          color: accentHex,
         }),
         new TextRun({
           text: title,
           bold: true,
           size: 19,
-          color: '433C71',
+          color: primaryHex,
         }),
         ...(badge
           ? [
@@ -185,7 +282,7 @@ export async function generateWordDocumentBlob(
         children: [
           // Logo column (Right)
           new TableCell({
-            width: { size: 12, type: WidthType.PERCENTAGE },
+            width: { size: isArq ? 20 : 12, type: WidthType.PERCENTAGE },
             borders: cellNoBorders,
             children: [
               new Paragraph({
@@ -195,10 +292,10 @@ export async function generateWordDocumentBlob(
                   logoBuffer
                     ? new ImageRun({
                         data: logoBuffer,
-                        transformation: { width: 48, height: 48 },
+                        transformation: isArq ? { width: 92, height: 52 } : { width: 48, height: 48 },
                         type: 'png',
                       })
-                    : new TextRun({ text: '✦', bold: true, size: 32, color: '433C71' }),
+                    : new TextRun({ text: isArq ? 'ARQ' : '✦', bold: true, size: 32, color: primaryHex }),
                 ],
               }),
             ],
@@ -206,7 +303,7 @@ export async function generateWordDocumentBlob(
 
           // Company name & info (Center)
           new TableCell({
-            width: { size: 58, type: WidthType.PERCENTAGE },
+            width: { size: isArq ? 50 : 58, type: WidthType.PERCENTAGE },
             borders: cellNoBorders,
             children: [
               new Paragraph({
@@ -214,10 +311,10 @@ export async function generateWordDocumentBlob(
                 bidirectional: true,
                 children: [
                   new TextRun({
-                    text: 'مجموعة شركات الرؤية المضيئة للاستشارات الهندسية والتصميم',
+                    text: company.fullTitleAr,
                     bold: true,
                     size: 21,
-                    color: '433C71',
+                    color: primaryHex,
                   }),
                 ],
               }),
@@ -226,10 +323,10 @@ export async function generateWordDocumentBlob(
                 bidirectional: true,
                 children: [
                   new TextRun({
-                    text: 'LUMINOUS VISION Engineering & Design Consultancy',
+                    text: company.englishFull,
                     bold: true,
                     size: 15,
-                    color: 'E37725',
+                    color: accentHex,
                   }),
                 ],
               }),
@@ -238,7 +335,7 @@ export async function generateWordDocumentBlob(
                 bidirectional: true,
                 children: [
                   new TextRun({
-                    text: 'تصميم معماري وإنشائي وكهروميكانيكي • كود البناء السعودي SBC • رخص بلدي • إشراف هندسي • دفاع مدني',
+                    text: company.credentialsLineAr,
                     size: 14,
                     color: '666666',
                   }),
@@ -273,7 +370,7 @@ export async function generateWordDocumentBlob(
                 bidirectional: true,
                 children: [
                   new TextRun({ text: 'إعداد المهندس: ', size: 15, color: '666666' }),
-                  new TextRun({ text: cleanEngineerName(clientInfo.preparedBy), bold: true, size: 15, color: '433C71' }),
+                  new TextRun({ text: cleanEngineerName(clientInfo.preparedBy), bold: true, size: 15, color: primaryHex }),
                 ],
               }),
               new Paragraph({
@@ -284,7 +381,7 @@ export async function generateWordDocumentBlob(
                     text: `صلاحية العرض: ${clientInfo.validityDays || 30} يوماً`,
                     bold: true,
                     size: 15,
-                    color: 'E37725',
+                    color: accentHex,
                   }),
                 ],
               }),
@@ -305,7 +402,7 @@ export async function generateWordDocumentBlob(
         text: 'عرض سعر',
         bold: true,
         size: 26,
-        color: '433C71',
+        color: primaryHex,
       }),
       new TextRun({
         text: ` — ${formatProposalDetailedTitle(clientInfo)}`,
@@ -335,7 +432,7 @@ export async function generateWordDocumentBlob(
             new Paragraph({
               alignment: AlignmentType.RIGHT,
               bidirectional: true,
-              children: [new TextRun({ text: l1, bold: true, size: 15, color: '433C71' })],
+              children: [new TextRun({ text: l1, bold: true, size: 15, color: primaryHex })],
             }),
           ],
         }),
@@ -358,7 +455,7 @@ export async function generateWordDocumentBlob(
             new Paragraph({
               alignment: AlignmentType.RIGHT,
               bidirectional: true,
-              children: [new TextRun({ text: l2, bold: true, size: 15, color: '433C71' })],
+              children: [new TextRun({ text: l2, bold: true, size: 15, color: primaryHex })],
             }),
           ],
         }),
@@ -381,7 +478,7 @@ export async function generateWordDocumentBlob(
             new Paragraph({
               alignment: AlignmentType.RIGHT,
               bidirectional: true,
-              children: [new TextRun({ text: l3, bold: true, size: 15, color: '433C71' })],
+              children: [new TextRun({ text: l3, bold: true, size: 15, color: primaryHex })],
             }),
           ],
         }),
@@ -437,9 +534,9 @@ export async function generateWordDocumentBlob(
     spacing: { before: 40, after: 60 },
     children: [
       new TextRun({ text: 'السيد/ ', size: 16 }),
-      new TextRun({ text: clientInfo.clientName || 'العميل المحترم', bold: true, size: 16, color: '433C71' }),
-      new TextRun({ text: ' المحترم، بناءً على طلبكم، يسر شركة ', size: 16 }),
-      new TextRun({ text: 'الرؤية المضيئة للاستشارات الهندسية ', bold: true, size: 16, color: '433C71' }),
+      new TextRun({ text: clientInfo.clientName || 'العميل المحترم', bold: true, size: 16, color: primaryHex }),
+      new TextRun({ text: ' المحترم، بناءً على طلبكم، يسر ', size: 16 }),
+      new TextRun({ text: `${company.fullNameAr} `, bold: true, size: 16, color: primaryHex }),
       new TextRun({ text: 'أن تقدم لسعادتكم عرض السعر الخاص بأعمال ', size: 16 }),
       new TextRun({ text: `${clientInfo.serviceType} `, bold: true, size: 16 }),
       new TextRun({ text: 'لمشروع ', size: 16 }),
@@ -466,7 +563,7 @@ export async function generateWordDocumentBlob(
                   alignment: AlignmentType.RIGHT,
                   bidirectional: true,
                   children: [
-                    new TextRun({ text: `${i + 1}. ${first.name}: `, bold: true, size: 16, color: '433C71' }),
+                    new TextRun({ text: `${i + 1}. ${first.name}: `, bold: true, size: 16, color: primaryHex }),
                     new TextRun({ text: first.description, size: 15, color: '333333' }),
                   ],
                 }),
@@ -481,7 +578,7 @@ export async function generateWordDocumentBlob(
                   alignment: AlignmentType.RIGHT,
                   bidirectional: true,
                   children: [
-                    new TextRun({ text: `${i + 2}. ${second.name}: `, bold: true, size: 16, color: '433C71' }),
+                    new TextRun({ text: `${i + 2}. ${second.name}: `, bold: true, size: 16, color: primaryHex }),
                     new TextRun({ text: second.description, size: 15, color: '333333' }),
                   ],
                 }),
@@ -504,7 +601,7 @@ export async function generateWordDocumentBlob(
                   alignment: AlignmentType.RIGHT,
                   bidirectional: true,
                   children: [
-                    new TextRun({ text: `${i + 1}. ${first.name}: `, bold: true, size: 16, color: '433C71' }),
+                    new TextRun({ text: `${i + 1}. ${first.name}: `, bold: true, size: 16, color: primaryHex }),
                     new TextRun({ text: first.description, size: 15, color: '333333' }),
                   ],
                 }),
@@ -528,7 +625,7 @@ export async function generateWordDocumentBlob(
       bidirectional: true,
       spacing: { after: 25 },
       children: [
-        new TextRun({ text: '• ', bold: true, color: 'E37725', size: 15 }),
+        new TextRun({ text: '• ', bold: true, color: accentHex, size: 15 }),
         ...(boldPrefix ? [new TextRun({ text: `${boldPrefix} `, bold: true, size: 15, color: '1A1A1A' })] : []),
         new TextRun({ text, size: 15, color: '333333' }),
       ],
@@ -544,7 +641,7 @@ export async function generateWordDocumentBlob(
       alignment: AlignmentType.RIGHT,
       bidirectional: true,
       spacing: { after: 30 },
-      children: [new TextRun({ text: 'التزامات المالك والأعمال المستثناة:', bold: true, size: 16, color: '433C71' })],
+      children: [new TextRun({ text: 'التزامات المالك والأعمال المستثناة:', bold: true, size: 16, color: primaryHex })],
     }),
     ...GENERAL_OWNER_OBLIGATIONS.slice(0, 3).map((ob) => createCompactBullet(ob)),
   ];
@@ -583,7 +680,7 @@ export async function generateWordDocumentBlob(
       alignment: AlignmentType.RIGHT,
       bidirectional: true,
       spacing: { after: 30 },
-      children: [new TextRun({ text: 'المدد الزمنية والتعديلات والملكية الفكرية:', bold: true, size: 16, color: '433C71' })],
+      children: [new TextRun({ text: 'المدد الزمنية والتعديلات والملكية الفكرية:', bold: true, size: 16, color: primaryHex })],
     }),
     createCompactBullet(`${clientInfo.executionDurationDays || 45} يوم عمل ${executionNotice}.`, 'مدة التنفيذ:'),
     createCompactBullet(`${clientInfo.revisionCountText || 'تعديلان (2)'}، ويعتمد كل طور قبل التالي.`, 'الاعتمادات:'),
@@ -743,7 +840,7 @@ export async function generateWordDocumentBlob(
       children: [
         new TableCell({
           borders: cellBorders,
-          shading: { fill: '2D2A4A', type: ShadingType.CLEAR },
+          shading: { fill: darkBannerHex, type: ShadingType.CLEAR },
           children: [
             new Paragraph({
               alignment: AlignmentType.RIGHT,
@@ -761,7 +858,7 @@ export async function generateWordDocumentBlob(
         }),
         new TableCell({
           borders: cellBorders,
-          shading: { fill: '2D2A4A', type: ShadingType.CLEAR },
+          shading: { fill: darkBannerHex, type: ShadingType.CLEAR },
           children: [
             new Paragraph({
               alignment: AlignmentType.LEFT,
@@ -837,7 +934,7 @@ export async function generateWordDocumentBlob(
                 new Paragraph({
                   alignment: AlignmentType.LEFT,
                   bidirectional: true,
-                  children: [new TextRun({ text: formatSAR(m.amount), bold: true, size: 15, color: '433C71' })],
+                  children: [new TextRun({ text: formatSAR(m.amount), bold: true, size: 15, color: primaryHex })],
                 }),
               ],
             }),
@@ -857,8 +954,8 @@ export async function generateWordDocumentBlob(
               children: [
                 new TextRun({ text: 'البنك: ', bold: true, size: 14 }),
                 new TextRun({
-                  text: `${clientInfo.bankDetails?.bankName || 'البنك السعودي للاستثمار'} (${
-                    clientInfo.bankDetails?.accountName || 'شركة مجموعة الرؤية المضيئة للاستشارات الهندسية'
+                  text: `${clientInfo.bankDetails?.bankName || company.defaultBankDetails.bankName} (${
+                    clientInfo.bankDetails?.accountName || company.defaultBankDetails.accountName
                   })`,
                   size: 14,
                 }),
@@ -868,7 +965,7 @@ export async function generateWordDocumentBlob(
               alignment: AlignmentType.RIGHT,
               bidirectional: true,
               children: [
-                new TextRun({ text: 'IBAN: ', bold: true, size: 15, color: 'E37725' }),
+                new TextRun({ text: 'IBAN: ', bold: true, size: 15, color: accentHex }),
                 new TextRun({ text: clientInfo.bankDetails?.iban || '-', bold: true, size: 15, color: '1A1A1A' }),
               ],
             }),
@@ -970,7 +1067,7 @@ export async function generateWordDocumentBlob(
                 alignment: AlignmentType.LEFT,
                 bidirectional: true,
                 children: [
-                  new TextRun({ text: 'اعتماد شركة الرؤية المضيئة للاستشارات الهندسية:', bold: true, size: 17, color: '433C71' }),
+                  new TextRun({ text: `اعتماد ${company.fullNameAr}:`, bold: true, size: 17, color: primaryHex }),
                 ],
               }),
               new Paragraph({
@@ -990,14 +1087,14 @@ export async function generateWordDocumentBlob(
                   sealBuffer
                     ? new ImageRun({
                         data: sealBuffer,
-                        transformation: { width: 105, height: 55 },
+                        transformation: { width: 105, height: 52 },
                         type: 'png',
                       })
                     : new TextRun({
-                        text: '[الختم المعتمد لشركة الرؤية المضيئة]',
+                        text: `[الختم المعتمد لـ ${company.fullNameAr}]`,
                         bold: true,
                         size: 15,
-                        color: '433C71',
+                        color: primaryHex,
                       }),
                 ],
               }),
@@ -1015,7 +1112,7 @@ export async function generateWordDocumentBlob(
     spacing: { before: 60 },
     children: [
       new TextRun({
-        text: `مجموعة شركات الرؤية المضيئة للاستشارات الهندسية والتصميم • عرض سعر رقم ${clientInfo.proposalNumber} • س.ت: 1010788646 • وثيقة عرض سعر معتمدة رسمياً`,
+        text: `${company.fullTitleAr} • عرض سعر رقم ${clientInfo.proposalNumber} • س.ت: ${company.crNumber} • وثيقة عرض سعر معتمدة رسمياً`,
         size: 13,
         color: '888888',
       }),
@@ -1077,32 +1174,47 @@ export async function generateWordDocumentBlob(
               new TableCell({
                 width: { size: 65, type: WidthType.PERCENTAGE },
                 borders: cellNoBorders,
-                children: [
-                  new Paragraph({
-                    alignment: AlignmentType.RIGHT,
-                    bidirectional: true,
-                    children: [
-                      new TextRun({
-                        text: 'شركة الرؤية المضيئة للاستشارات الهندسية',
-                        bold: true,
-                        size: 20,
-                        color: '2C2E30',
-                      }),
-                    ],
-                  }),
-                  new Paragraph({
-                    alignment: AlignmentType.RIGHT,
-                    bidirectional: true,
-                    children: [
-                      new TextRun({
-                        text: 'LUMINOUS VISION ENGINEERING CONSULTANCY',
-                        bold: true,
-                        size: 14,
-                        color: 'A6926B',
-                      }),
-                    ],
-                  }),
-                ],
+                children:
+                  isArq && logoBuffer
+                    ? [
+                        new Paragraph({
+                          alignment: AlignmentType.RIGHT,
+                          bidirectional: true,
+                          children: [
+                            new ImageRun({
+                              data: logoBuffer,
+                              transformation: { width: 112, height: 63 },
+                              type: 'png',
+                            }),
+                          ],
+                        }),
+                      ]
+                    : [
+                        new Paragraph({
+                          alignment: AlignmentType.RIGHT,
+                          bidirectional: true,
+                          children: [
+                            new TextRun({
+                              text: company.fullNameAr,
+                              bold: true,
+                              size: 20,
+                              color: '2C2E30',
+                            }),
+                          ],
+                        }),
+                        new Paragraph({
+                          alignment: AlignmentType.RIGHT,
+                          bidirectional: true,
+                          children: [
+                            new TextRun({
+                              text: `${company.shortNameEn} ${company.englishSubtitle}`.trim(),
+                              bold: true,
+                              size: 14,
+                              color: 'A6926B',
+                            }),
+                          ],
+                        }),
+                      ],
               }),
               new TableCell({
                 width: { size: 35, type: WidthType.PERCENTAGE },
@@ -1793,12 +1905,12 @@ export async function generateWordDocumentBlob(
       new Table({
         width: { size: 100, type: WidthType.PERCENTAGE },
         rows: [
-          ['البنك', clientInfo.bankDetails?.bankName || 'البنك السعودي للاستثمار'],
-          ['اسم الحساب', clientInfo.bankDetails?.accountName || 'شركة الرؤية المضيئة للاستشارات الهندسية'],
+          ['البنك', clientInfo.bankDetails?.bankName || company.defaultBankDetails.bankName],
+          ['اسم الحساب', clientInfo.bankDetails?.accountName || company.defaultBankDetails.accountName],
           ...(clientInfo.bankDetails?.accountNumber
             ? [['رقم الحساب', clientInfo.bankDetails.accountNumber]]
             : []),
-          ['الآيبان (IBAN)', clientInfo.bankDetails?.iban || 'SA83 6500 0000 1383 4937 6001'],
+          ['الآيبان (IBAN)', clientInfo.bankDetails?.iban || company.defaultBankDetails.iban],
         ].map(
           ([k, v]) =>
             new TableRow({
@@ -1883,7 +1995,7 @@ export async function generateWordDocumentBlob(
                     alignment: AlignmentType.CENTER,
                     bidirectional: true,
                     spacing: { before: 60, after: 20 },
-                    children: [new TextRun({ text: 'شركة الرؤية المضيئة للاستشارات الهندسية', bold: true, size: 17 })],
+                    children: [new TextRun({ text: company.fullNameAr, bold: true, size: 17 })],
                   }),
                   ...(contract.showCompanySeal && sealBuffer
                     ? [

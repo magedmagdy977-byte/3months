@@ -1,3 +1,5 @@
+export type CompanyId = 'luminous' | 'arq';
+
 export type DepartmentId = 'design' | 'supervision' | 'decor' | 'survey' | 'civil_defense' | 'execution';
 
 export type BuildingType =
@@ -100,6 +102,8 @@ export interface BankAccountDetails {
 }
 
 export interface ClientInfo {
+  // الشركة المصدرة للعرض والعقد
+  companyId?: CompanyId;
   // أولًا: بيانات العرض والمشروع
   proposalNumber: string; // {{رقم_العرض}}
   date: string; // {{التاريخ}}
@@ -255,6 +259,7 @@ export interface UserSession {
 
 export interface SavedQuotation {
   id: string;
+  companyId?: CompanyId;
   quoteNumber: string;
   createdAt: string;
   clientInfo: ClientInfo;

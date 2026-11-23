@@ -1,13 +1,17 @@
 import React from 'react';
 import { X, HelpCircle, Check, Ruler, Palette, MapPin, ShieldAlert, Hammer, ClipboardCheck } from 'lucide-react';
+import { CompanyId } from '../../types';
+import { getCompanyProfile } from '../../data/companies';
 
 interface PricingGuideModalProps {
   isOpen: boolean;
   onClose: () => void;
+  companyId?: CompanyId;
 }
 
-export const PricingGuideModal: React.FC<PricingGuideModalProps> = ({ isOpen, onClose }) => {
+export const PricingGuideModal: React.FC<PricingGuideModalProps> = ({ isOpen, onClose, companyId }) => {
   if (!isOpen) return null;
+  const company = getCompanyProfile(companyId);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/60 backdrop-blur-xs no-print animate-in fade-in duration-200">
@@ -19,7 +23,7 @@ export const PricingGuideModal: React.FC<PricingGuideModalProps> = ({ isOpen, on
               <HelpCircle className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-black">دليل لائحة تسعير الرؤية المضيئة المعتمدة</h2>
+              <h2 className="text-base font-black">دليل لائحة تسعير {company.shortNameAr} المعتمدة</h2>
               <p className="text-xs text-stone-400">
                 مرجع القواعد الحسابية والشرائح لكافة الأقسام الهندسية الستة
               </p>

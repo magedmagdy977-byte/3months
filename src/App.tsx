@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
+  CompanyId,
   DepartmentId,
   QuotationItem,
   ClientInfo,
@@ -25,7 +26,15 @@ import { GeminiDeedAssistantModal } from './components/ai/GeminiDeedAssistantMod
 import { PrivatePortalLogin } from './components/auth/PrivatePortalLogin';
 import { AdminSecurityModal } from './components/modals/AdminSecurityModal';
 import { ContractEditorModal } from './components/contract/ContractEditorModal';
-import { buildSmartContract } from './data/smartContractEngine';
+import { buildSmartContract, formatContractNumber } from './data/smartContractEngine';
+import {
+  getCompanyProfile,
+  getSavedActiveCompanyId,
+  saveActiveCompanyId,
+  resolveCompanyId,
+  isDefaultCompanyAccountName,
+  isDefaultSecondPartyText,
+} from './data/companies';
 import {
   getSavedSession,
   clearSession,
@@ -72,6 +81,7 @@ const STORAGE_KEY_SAVED = 'alroaya_saved_quotes_v1';
 const STORAGE_KEY_OUTPUT_MODE = 'alroaya_output_mode_v1';
 
 export default function App() {
+  const [activeCompanyId, setActiveCompanyId] = useState<CompanyId>(() => getSavedActiveCompanyId());
   const [activeDept, setActiveDept] = useState<DepartmentId>('design');
   const [outputMode, setOutputMode] = useState<'master' | 'simplified'>(() => {
     try {
@@ -91,7 +101,8 @@ export default function App() {
   });
 
   const [clientInfo, setClientInfo] = useState<ClientInfo>(() => {
-    const defaultInfo = getDefaultClientInfo();
+    const initialCompanyId = getSavedActiveCompanyId();
+    const defaultInfo = getDefaultClientInfo(initialCompanyId);
     try {
       const saved = localStorage.getItem(STORAGE_KEY_CLIENT);
       if (saved) {
@@ -137,6 +148,7 @@ export default function App() {
         return {
           ...defaultInfo,
           ...parsed,
+          companyId: resolveCompanyId(parsed.companyId || initialCompanyId),
           district: cleanedDistrict,
           locationZone: cleanedDistrict ? (parsed.locationZone || 'none') : 'none',
           plotNumber: cleanedPlotNumber,
@@ -292,11 +304,64 @@ export default function App() {
     }
   }, [outputMode]);
 
+  useEffect(() => {
+    saveActiveCompanyId(activeCompanyId);
+    const profile = getCompanyProfile(activeCompanyId);
+    if (!isPrintMode) {
+      document.title = profile.appTitleAr;
+    }
+  }, [activeCompanyId, isPrintMode]);
+
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => {
       setToastMessage(null);
     }, 3500);
+  };
+
+  const applyCompanySwitchToClientInfo = (prev: ClientInfo, nextCompanyId: CompanyId): ClientInfo => {
+    const nextProfile = getCompanyProfile(nextCompanyId);
+    const nextBankDetails = {
+      ...prev.bankDetails,
+      accountName: isDefaultCompanyAccountName(prev.bankDetails?.accountName)
+        ? nextProfile.defaultBankDetails.accountName
+        : prev.bankDetails.accountName,
+    };
+
+    let nextContractData = prev.contractData;
+    if (prev.contractData) {
+      nextContractData = {
+        ...prev.contractData,
+        secondPartyText: isDefaultSecondPartyText(prev.contractData.secondPartyText)
+          ? nextProfile.secondPartyText
+          : prev.contractData.secondPartyText,
+        contractNumber: formatContractNumber(
+          prev.contractData.contractNumber || prev.proposalNumber,
+          nextCompanyId
+        ),
+      };
+    }
+
+    return {
+      ...prev,
+      companyId: nextCompanyId,
+      bankDetails: nextBankDetails,
+      contractData: nextContractData,
+    };
+  };
+
+  const handleSelectCompany = (nextCompanyId: CompanyId, silent?: boolean) => {
+    if (nextCompanyId === activeCompanyId && clientInfo.companyId === nextCompanyId) {
+      return;
+    }
+    setActiveCompanyId(nextCompanyId);
+    saveActiveCompanyId(nextCompanyId);
+    setClientInfo((prev) => applyCompanySwitchToClientInfo(prev, nextCompanyId));
+    setPrintClientInfo((prev) => (prev ? applyCompanySwitchToClientInfo(prev, nextCompanyId) : prev));
+    if (!silent) {
+      const profile = getCompanyProfile(nextCompanyId);
+      showToast(`تم التبديل إلى «${profile.fullNameAr}» — جميع عروض الأسعار والعقود والتصدير ستصدر بهويتها`);
+    }
   };
 
   const handleToggleSimplifiedMode = () => {
@@ -463,10 +528,11 @@ export default function App() {
       localStorage.removeItem(STORAGE_KEY_ITEMS);
       setLoadedQuoteId(null);
 
-      // Reset client info to clean default template
-      const defaultInfo = getDefaultClientInfo();
+      // Reset client info to clean default template for the active company
+      const defaultInfo = getDefaultClientInfo(activeCompanyId);
       const freshClientInfo: ClientInfo = {
         ...defaultInfo,
+        companyId: activeCompanyId,
         proposalNumber: nextProposalNumber,
         preparedBy: currentUser?.engineerName || defaultInfo.preparedBy || 'م. ماجد (المدير العام)',
         date: getTodayDateString(),
@@ -496,6 +562,12 @@ export default function App() {
   };
 
   const handleUpdateClientInfo = (updated: Partial<ClientInfo>) => {
+    if (updated.companyId && updated.companyId !== activeCompanyId) {
+      handleSelectCompany(updated.companyId);
+      const { companyId: _ignored, ...rest } = updated;
+      if (Object.keys(rest).length === 0) return;
+      updated = rest;
+    }
     if (updated.proposalNumber !== undefined) {
       const seq = extractQuoteSequence(updated.proposalNumber);
       if (seq !== null && seq >= 0 && seq <= 100000) {
@@ -614,12 +686,15 @@ export default function App() {
 
       const proposalNumberToSave = clientInfo.proposalNumber || generateQuoteNumber(false);
 
+      const resolvedCompany = resolveCompanyId(clientInfo.companyId || activeCompanyId);
       const newSaved: SavedQuotation = {
         id: quoteId,
+        companyId: resolvedCompany,
         quoteNumber: proposalNumberToSave,
         createdAt: new Date().toLocaleDateString('ar-SA'),
         clientInfo: {
           ...clientInfo,
+          companyId: resolvedCompany,
           proposalNumber: proposalNumberToSave,
           preparedBy: currentUser?.engineerName || clientInfo.preparedBy,
         },
@@ -669,8 +744,11 @@ export default function App() {
   };
 
   const handleLoadQuotation = (saved: SavedQuotation) => {
+    const loadedCompanyId = resolveCompanyId(saved.companyId || saved.clientInfo?.companyId);
+    setActiveCompanyId(loadedCompanyId);
+    saveActiveCompanyId(loadedCompanyId);
     setLoadedQuoteId(saved.id);
-    setClientInfo({ ...saved.clientInfo });
+    setClientInfo({ ...saved.clientInfo, companyId: loadedCompanyId });
     setCartItems([...saved.items]);
     setIsHistoryOpen(false);
     setIsCartOpen(true);
@@ -738,10 +816,13 @@ export default function App() {
   if (!currentUser) {
     return (
       <PrivatePortalLogin
+        activeCompanyId={activeCompanyId}
+        onSelectCompany={(companyId) => handleSelectCompany(companyId, true)}
         onLoginSuccess={(session) => {
           setCurrentUser(session);
           setClientInfo((prev) => ({
             ...prev,
+            companyId: activeCompanyId,
             preparedBy: session.engineerName,
           }));
           showToast(`أهلاً بك ${session.engineerName} • تم فتح المنصة بنجاح`);
@@ -762,6 +843,7 @@ export default function App() {
             setOutputMode(mode);
           }
         }}
+        onSelectCompany={(companyId) => handleSelectCompany(companyId)}
         onUpdateClientInfo={(updated) => {
           handleUpdateClientInfo(updated);
           setPrintClientInfo((prev) => (prev ? { ...prev, ...updated } : prev));
@@ -785,6 +867,8 @@ export default function App() {
 
       {/* Top Header */}
       <Header
+        activeCompanyId={activeCompanyId}
+        onSelectCompany={(companyId) => handleSelectCompany(companyId)}
         cartItemCount={cartItems.length}
         cartTotal={cartTotal}
         savedCount={savedQuotations.length}
@@ -910,6 +994,7 @@ export default function App() {
         isSimplifiedMode={outputMode === 'simplified'}
         onToggleSimplifiedMode={handleToggleSimplifiedMode}
         onOpenContractEditor={() => setIsContractEditorOpen(true)}
+        onSelectCompany={handleSelectCompany}
       />
 
       {/* Smart Contract Full Editor Modal */}
@@ -931,12 +1016,17 @@ export default function App() {
       />
 
       {/* Pricing Guide Modal */}
-      <PricingGuideModal isOpen={isGuideOpen} onClose={() => setIsGuideOpen(false)} />
+      <PricingGuideModal
+        isOpen={isGuideOpen}
+        onClose={() => setIsGuideOpen(false)}
+        companyId={activeCompanyId}
+      />
 
       {/* Master Template Info Modal */}
       <MasterTemplateInfoModal
         isOpen={isMasterTemplateOpen}
         onClose={() => setIsMasterTemplateOpen(false)}
+        companyId={activeCompanyId}
       />
 
       {/* Saved Quotations Modal */}
@@ -955,6 +1045,7 @@ export default function App() {
       <ExportAndInstallModal
         isOpen={isExportOpen}
         onClose={() => setIsExportOpen(false)}
+        companyId={activeCompanyId}
       />
 
       {/* Admin Security & Office Passcode Modal (For Administrators: M. Maged & M. Nour) */}

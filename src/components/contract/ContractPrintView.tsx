@@ -11,7 +11,8 @@ import {
   tafqeetSAR,
 } from '../../utils/formatters';
 import { formatContractDisplayDate } from '../../data/smartContractEngine';
-import { LuminousLogo } from '../LuminousLogo';
+import { CompanyLogo, CompanyOfficialSeal } from '../CompanyLogo';
+import { getCompanyProfile, resolveCompanyId } from '../../data/companies';
 import { FileEdit } from 'lucide-react';
 
 interface ContractPrintViewProps {
@@ -58,6 +59,9 @@ export const ContractPrintView: React.FC<ContractPrintViewProps> = ({
   onEditMilestones,
   startsOnNewPage = false,
 }) => {
+  const activeCompanyId = resolveCompanyId(clientInfo.companyId);
+  const company = getCompanyProfile(activeCompanyId);
+  const isArq = activeCompanyId === 'arq';
   const areaDetails = getQuotationAreaDetails(clientInfo, items);
   const amountAfterDiscount = Math.max(0, subtotal - discountAmount);
 
@@ -107,30 +111,38 @@ export const ContractPrintView: React.FC<ContractPrintViewProps> = ({
       style={{ fontFamily: "'Cairo', 'Tajawal', sans-serif" }}
     >
       {/* =====================================================================
-          1. ARCHITECTURAL LETTERHEAD (Luminous Vision + Taupe Accent Rule)
+          1. ARCHITECTURAL LETTERHEAD (Company Logo + Taupe Accent Rule)
          ===================================================================== */}
       <header className="pb-3 mb-5 border-b border-[#d4cfc3] relative">
         <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 shrink-0 flex items-center justify-center">
-              <LuminousLogo variant="icon" className="w-full h-full" />
-            </div>
-            <div>
-              <div className="text-[15px] font-black text-[#2c2e30] leading-tight">
-                شركة الرؤية المضيئة للاستشارات الهندسية
-              </div>
-              <div
-                dir="ltr"
-                className="inline-flex items-center gap-1.5 text-[10px] font-extrabold tracking-[0.2em] mt-0.5"
-              >
-                <span className="text-[#433c71]">LUMINOUS</span>
-                <span className="text-[#a6926b]">VISION</span>
-                <span className="text-[#78746c] tracking-normal font-bold">
-                  ENGINEERING CONSULTANCY
-                </span>
+          {isArq ? (
+            <div className="flex items-center gap-3">
+              <div className="h-14 print:h-12 shrink-0 flex items-center justify-center">
+                <CompanyLogo companyId="arq" variant="full" className="h-full w-auto" color="#111111" />
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 shrink-0 flex items-center justify-center">
+                <CompanyLogo companyId="luminous" variant="icon" className="w-full h-full" />
+              </div>
+              <div>
+                <div className="text-[15px] font-black text-[#2c2e30] leading-tight">
+                  {company.fullNameAr}
+                </div>
+                <div
+                  dir="ltr"
+                  className="inline-flex items-center gap-1.5 text-[10px] font-extrabold tracking-[0.2em] mt-0.5"
+                >
+                  <span className="text-[#433c71]">LUMINOUS</span>
+                  <span className="text-[#a6926b]">VISION</span>
+                  <span className="text-[#78746c] tracking-normal font-bold">
+                    ENGINEERING CONSULTANCY
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="flex items-center gap-2">
             {onEditContract && (
@@ -641,7 +653,7 @@ export const ContractPrintView: React.FC<ContractPrintViewProps> = ({
                 اسم الحساب
               </td>
               <td className="border border-[#dcdad2] py-2 px-4 text-center font-bold text-[#26282a]">
-                {clientInfo.bankDetails?.accountName || 'شركة الرؤية المضيئة للاستشارات الهندسية'}
+                {clientInfo.bankDetails?.accountName || company.fullNameAr}
               </td>
             </tr>
             {clientInfo.bankDetails?.accountNumber && (
@@ -688,21 +700,13 @@ export const ContractPrintView: React.FC<ContractPrintViewProps> = ({
               </td>
               <td className="border border-[#dcdad2] py-3 px-4 text-center font-bold text-[#26282a] align-top">
                 <div className="font-black text-[12.5px] mb-2">
-                  شركة الرؤية المضيئة للاستشارات الهندسية
+                  {company.fullNameAr}
                 </div>
                 {contract.showCompanySeal ? (
                   <div className="flex justify-center pt-1">
-                    <img
-                      src="/official-seal.png"
-                      onError={(e) => {
-                        const target = e.currentTarget;
-                        if (target.src.indexOf('/official-emblem.svg') === -1) {
-                          target.src = '/official-emblem.svg';
-                        }
-                      }}
-                      alt="ختم شركة الرؤية المضيئة للاستشارات الهندسية"
-                      className="h-16 print:h-14 w-auto object-contain select-none"
-                      loading="eager"
+                    <CompanyOfficialSeal
+                      companyId={activeCompanyId}
+                      className="h-16 print:h-14 w-auto"
                     />
                   </div>
                 ) : (
@@ -720,7 +724,7 @@ export const ContractPrintView: React.FC<ContractPrintViewProps> = ({
       <footer className="pt-3 mt-4 border-t border-[#d4cfc3] flex items-center justify-between text-[10px] print:text-[8.5px] text-[#78746c]">
         <div className="flex items-center gap-3">
           <div className="h-[2.5px] w-16 bg-[#a6926b]" />
-          <span>شركة الرؤية المضيئة للاستشارات الهندسية • س.ت: 1010788646</span>
+          <span>{company.fullNameAr} • س.ت: {company.crNumber}</span>
         </div>
         <span className="font-mono font-bold text-[#5e5c57]">عقد رقم {contract.contractNumber}</span>
       </footer>

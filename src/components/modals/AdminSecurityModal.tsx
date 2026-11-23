@@ -213,7 +213,7 @@ export const AdminSecurityModal: React.FC<AdminSecurityModalProps> = ({
                 </span>
               </div>
               <p className="text-xs text-stone-400">
-                التحكم بالرمز السري وقائمة المهندسين المعتمدين لمكتب الرؤية المضيئة
+                التحكم بالرمز السري وقائمة المهندسين المعتمدين لشركتي الرؤية المضيئة وأرك للاستشارات الهندسية
               </p>
             </div>
           </div>

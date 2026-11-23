@@ -5,8 +5,10 @@ import {
   PaymentMilestone,
   QuotationItem,
   ClientInfo,
+  CompanyId,
 } from '../types';
 import { generateQuoteNumber, getTodayDateString } from '../utils/formatters';
+import { getCompanyProfile, getSavedActiveCompanyId } from './companies';
 
 // 1. Definition of each conditional scope unit (ثالثًا: نطاق أعمال الاستشاري — وحدات شرطية)
 export interface MasterScopeItemDef {
@@ -130,8 +132,11 @@ export const DEFAULT_BANK_DETAILS: BankAccountDetails = {
 };
 
 // 5. Default initial ClientInfo
-export function getDefaultClientInfo(): ClientInfo {
+export function getDefaultClientInfo(companyId?: CompanyId): ClientInfo {
+  const activeCompanyId = companyId || getSavedActiveCompanyId();
+  const company = getCompanyProfile(activeCompanyId);
   return {
+    companyId: activeCompanyId,
     proposalNumber: generateQuoteNumber(),
     date: getTodayDateString(),
     clientName: '',
@@ -187,7 +192,7 @@ export function getDefaultClientInfo(): ClientInfo {
     },
 
     paymentScheduleType: 'design_standard',
-    bankDetails: { ...DEFAULT_BANK_DETAILS },
+    bankDetails: { ...company.defaultBankDetails },
 
     includeTax: false,
     discountType: 'percentage',

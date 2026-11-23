@@ -18,11 +18,14 @@ import {
   FileSignature,
 } from 'lucide-react';
 import { formatSAR } from '../utils/formatters';
-import { LuminousLogo } from './LuminousLogo';
-import { UserSession } from '../types';
+import { CompanyLogo } from './CompanyLogo';
+import { CompanyId, UserSession } from '../types';
 import { isUserPrimaryAdmin } from '../lib/security';
+import { getCompanyProfile } from '../data/companies';
 
 interface HeaderProps {
+  activeCompanyId: CompanyId;
+  onSelectCompany: (companyId: CompanyId) => void;
   cartItemCount: number;
   cartTotal: number;
   savedCount?: number;
@@ -45,6 +48,8 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({
+  activeCompanyId,
+  onSelectCompany,
   cartItemCount,
   cartTotal,
   savedCount = 0,
@@ -66,26 +71,42 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenContractEditor,
 }) => {
   const isSuperAdmin = session && isUserPrimaryAdmin(session.engineerName);
+  const company = getCompanyProfile(activeCompanyId);
+  const isArq = activeCompanyId === 'arq';
   return (
     <header className="bg-stone-900 text-stone-100 border-b border-stone-800 sticky top-0 z-30 shadow-md no-print">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-col sm:flex-row items-center justify-between gap-4">
-        {/* Brand identity */}
+        {/* Brand identity & Dual-Company Switcher */}
         <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start">
           <div className="flex items-center gap-3">
-            <div className="h-11 w-11 rounded-xl bg-white p-1 flex items-center justify-center shrink-0 border border-stone-700/60 shadow-xs">
-              <LuminousLogo variant="icon" className="h-8 w-auto" />
+            <div
+              className={`h-11 ${
+                isArq ? 'w-16 px-1.5' : 'w-11 p-1'
+              } rounded-xl bg-white flex items-center justify-center shrink-0 border border-stone-700/60 shadow-xs transition-all`}
+            >
+              <CompanyLogo
+                companyId={activeCompanyId}
+                variant={isArq ? 'full' : 'icon'}
+                className={isArq ? 'h-8 w-auto' : 'h-8 w-auto'}
+              />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-lg sm:text-xl font-black tracking-tight text-white">
-                  تسعير الرؤية المضيئة
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-lg sm:text-xl font-black tracking-tight text-white whitespace-nowrap">
+                  {company.appTitleAr}
                 </h1>
-                <span className="text-[10px] font-bold bg-[#e37725]/20 text-[#e37725] border border-[#e37725]/40 px-2 py-0.5 rounded-full font-mono">
-                  LUMINOUS VISION
+                <span
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded-md font-mono whitespace-nowrap ${
+                    isArq
+                      ? 'bg-[#a6926b]/20 text-[#e6d7b9] border border-[#a6926b]/50'
+                      : 'bg-[#e37725]/20 text-[#e37725] border border-[#e37725]/40'
+                  }`}
+                >
+                  {isArq ? 'ARQ CONSULTANCY' : 'LUMINOUS VISION'}
                 </span>
               </div>
               <p className="text-xs text-stone-400">
-                مجموعة شركات الرؤية المضيئة للاستشارات الهندسية • التسعير المعتمد
+                {company.headerSubtitleAr}
               </p>
             </div>
           </div>
@@ -119,6 +140,45 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Action Controls */}
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+          {/* Dual-Company Segmented Switcher (الرؤية المضيئة | أرك ARQ) */}
+          <div
+            className="inline-flex items-center gap-1 p-1 bg-stone-950/90 border border-stone-700/80 rounded-xl shrink-0"
+            role="group"
+            aria-label="اختيار الشركة المصدرة"
+          >
+            <button
+              type="button"
+              onClick={() => onSelectCompany('luminous')}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-black transition cursor-pointer whitespace-nowrap shrink-0 ${
+                !isArq
+                  ? 'bg-white text-[#433c71] shadow-sm'
+                  : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/70'
+              }`}
+              title="التبديل إلى شركة الرؤية المضيئة للاستشارات الهندسية (Luminous Vision)"
+            >
+              <CompanyLogo companyId="luminous" variant="icon" className="h-4 w-auto shrink-0" />
+              <span>الرؤية المضيئة</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onSelectCompany('arq')}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-black transition cursor-pointer whitespace-nowrap shrink-0 ${
+                isArq
+                  ? 'bg-white text-stone-950 shadow-sm'
+                  : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/70'
+              }`}
+              title="التبديل إلى شركة أرك للاستشارات الهندسية (ARQ Engineering Consultancy)"
+            >
+              <CompanyLogo
+                companyId="arq"
+                variant="icon"
+                className="h-3.5 w-auto shrink-0"
+                arqColor={isArq ? '#111111' : '#d6d3d1'}
+              />
+              <span>أرك (ARQ)</span>
+            </button>
+          </div>
+
           {/* Smart Contract Attachment & Editor Trigger */}
           {onOpenContractEditor && (
             <button
@@ -266,7 +326,7 @@ export const Header: React.FC<HeaderProps> = ({
             type="button"
             onClick={onOpenPricingGuide}
             className="inline-flex items-center gap-1.5 text-xs font-medium text-stone-300 hover:text-white bg-stone-800 hover:bg-stone-700/80 border border-stone-700 px-3 py-2 rounded-lg transition"
-            title="دليل شرائح وتسعير الرؤية المضيئة"
+            title={`دليل شرائح وتسعير ${company.shortNameAr}`}
           >
             <HelpCircle className="w-4 h-4 text-amber-400" />
             <span className="hidden md:inline">دليل الشرائح</span>

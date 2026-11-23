@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { QuotationItem, ClientInfo, MasterTemplateScopeFlags, PaymentMilestone, ContractTemplateKind } from '../../types';
+import { QuotationItem, ClientInfo, MasterTemplateScopeFlags, PaymentMilestone, ContractTemplateKind, CompanyId } from '../../types';
 import { formatSAR } from '../../utils/formatters';
-import { LuminousLogo } from '../LuminousLogo';
+import { CompanyLogo } from '../CompanyLogo';
+import { getCompanyProfile, resolveCompanyId } from '../../data/companies';
 import {
   MASTER_SCOPE_DEFINITIONS,
   DECOR_SCOPE_DEFINITIONS,
@@ -67,6 +68,7 @@ interface QuotationDrawerProps {
   isSimplifiedMode?: boolean;
   onToggleSimplifiedMode?: () => void;
   onOpenContractEditor?: () => void;
+  onSelectCompany?: (companyId: CompanyId) => void;
 }
 
 export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
@@ -85,7 +87,18 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
   isSimplifiedMode = false,
   onToggleSimplifiedMode,
   onOpenContractEditor,
+  onSelectCompany,
 }) => {
+  const activeCompanyId = resolveCompanyId(clientInfo.companyId);
+  const company = getCompanyProfile(activeCompanyId);
+  const isArq = activeCompanyId === 'arq';
+  const handleSwitchCompany = (nextId: CompanyId) => {
+    if (onSelectCompany) {
+      onSelectCompany(nextId);
+    } else {
+      onUpdateClientInfo({ companyId: nextId });
+    }
+  };
   const [activeTab, setActiveTab] = useState<'items' | 'project' | 'scope' | 'terms' | 'contract'>('items');
 
   // Item inline edit state
@@ -480,37 +493,80 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
     <div className="fixed inset-0 z-50 flex justify-end bg-stone-950/60 backdrop-blur-xs transition-opacity no-print">
       <div className="w-full max-w-2xl bg-white h-full shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-left duration-300">
         {/* Drawer Header */}
-        <div className="bg-stone-900 text-white px-6 py-4 flex items-center justify-between border-b border-stone-800">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-white p-1 flex items-center justify-center shrink-0 border border-stone-700">
-              <LuminousLogo variant="icon" className="w-full h-full" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-base font-black">عرض السعر والنموذج الموحد</h2>
-                <span className="text-[10px] font-bold bg-[#e37725]/20 text-[#e37725] border border-[#e37725]/30 px-2 py-0.5 rounded-full font-mono">
-                  MASTER TEMPLATE
-                </span>
+        <div className="bg-stone-900 text-white px-6 py-4 border-b border-stone-800 space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div
+                className={`h-10 rounded-xl bg-white p-1.5 flex items-center justify-center shrink-0 border border-stone-700 ${
+                  isArq ? 'w-14' : 'w-10'
+                }`}
+              >
+                <CompanyLogo companyId={activeCompanyId} variant="icon" className="w-full h-full" />
               </div>
-              <div className="flex flex-wrap items-center gap-2 text-xs text-stone-400 mt-0.5">
-                <span>رقم العرض: <strong className="text-stone-200">{clientInfo.proposalNumber}</strong></span>
-                <span>•</span>
-                <span>{items.length} بنود مدرجة</span>
-                <span>•</span>
-                <span className="text-amber-400 font-bold bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-md">
-                  إعداد المهندس: {clientInfo.preparedBy || 'م.ماجد'}
-                </span>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-base font-black">عرض السعر والنموذج الموحد</h2>
+                  <span
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
+                      isArq
+                        ? 'bg-[#a6926b]/20 text-[#e8d9b8] border-[#a6926b]/40'
+                        : 'bg-[#e37725]/20 text-[#e37725] border-[#e37725]/30'
+                    }`}
+                  >
+                    {company.shortNameAr}
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-xs text-stone-400 mt-0.5">
+                  <span>رقم العرض: <strong className="text-stone-200 font-mono">{clientInfo.proposalNumber}</strong></span>
+                  <span>•</span>
+                  <span>{items.length} بنود مدرجة</span>
+                  <span>•</span>
+                  <span className="text-amber-400 font-bold bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-md">
+                    إعداد المهندس: {clientInfo.preparedBy || 'م.ماجد'}
+                  </span>
+                </div>
               </div>
             </div>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-8 h-8 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 flex items-center justify-center transition shrink-0 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-8 h-8 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 flex items-center justify-center transition"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          {/* Segmented Company Switcher inside Drawer */}
+          <div className="flex items-center justify-between gap-2 bg-stone-950/70 border border-stone-800 rounded-xl px-2.5 py-1.5">
+            <span className="text-[11px] font-bold text-stone-400 whitespace-nowrap">
+              الشركة المُصدرة للعرض والعقد:
+            </span>
+            <div className="inline-flex items-center bg-stone-900 border border-stone-700 rounded-lg p-0.5 gap-0.5">
+              <button
+                type="button"
+                onClick={() => handleSwitchCompany('luminous')}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-black transition whitespace-nowrap shrink-0 cursor-pointer ${
+                  !isArq
+                    ? 'bg-[#e37725] text-white shadow-xs'
+                    : 'text-stone-300 hover:text-white hover:bg-stone-800'
+                }`}
+              >
+                الرؤية المضيئة
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSwitchCompany('arq')}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-black transition whitespace-nowrap shrink-0 cursor-pointer ${
+                  isArq
+                    ? 'bg-white text-stone-950 shadow-xs'
+                    : 'text-stone-300 hover:text-white hover:bg-stone-800'
+                }`}
+              >
+                أرك (ARQ)
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Navigation Tabs */}

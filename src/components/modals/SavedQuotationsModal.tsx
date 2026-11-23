@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { SavedQuotation } from '../../types';
+import { SavedQuotation, CompanyId } from '../../types';
 import { formatSAR } from '../../utils/formatters';
+import { getCompanyProfile, resolveCompanyId } from '../../data/companies';
 import {
   X,
   History,
@@ -18,6 +19,7 @@ import {
   CheckSquare,
   Square,
   Check,
+  Building2,
 } from 'lucide-react';
 import { getAuthorizedUsersList } from '../../lib/security';
 import { downloadWordDocument } from '../../lib/wordExport';
@@ -46,6 +48,7 @@ export const SavedQuotationsModal: React.FC<SavedQuotationsModalProps> = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedEngineer, setSelectedEngineer] = useState<string>('all');
+  const [selectedCompany, setSelectedCompany] = useState<'all' | CompanyId>('all');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [showBatchConfirm, setShowBatchConfirm] = useState<boolean>(false);
   const [singleDeleteTarget, setSingleDeleteTarget] = useState<SavedQuotation | null>(null);
@@ -55,9 +58,22 @@ export const SavedQuotationsModal: React.FC<SavedQuotationsModalProps> = ({
   // Active authorized engineers list
   const authorizedStaff = getAuthorizedUsersList();
 
+  const luminousCount = savedQuotations.filter(
+    (q) => q && resolveCompanyId(q.companyId || q.clientInfo?.companyId) === 'luminous'
+  ).length;
+  const arqCount = savedQuotations.filter(
+    (q) => q && resolveCompanyId(q.companyId || q.clientInfo?.companyId) === 'arq'
+  ).length;
+
   const filteredQuotes = savedQuotations.filter((q) => {
     if (!q) return false;
     const engineerName = q.preparedBy || q.clientInfo?.preparedBy || 'م.ماجد';
+    const quoteCompanyId = resolveCompanyId(q.companyId || q.clientInfo?.companyId);
+
+    // Filter by company
+    if (selectedCompany !== 'all' && quoteCompanyId !== selectedCompany) {
+      return false;
+    }
 
     // Filter by engineer (defaults to 'all' so every engineer sees all quotations)
     if (selectedEngineer !== 'all') {
@@ -69,11 +85,14 @@ export const SavedQuotationsModal: React.FC<SavedQuotationsModalProps> = ({
     // Filter by search term
     if (!searchTerm.trim()) return true;
     const term = searchTerm.toLowerCase();
+    const companyProfile = getCompanyProfile(quoteCompanyId);
     return (
       (q.quoteNumber && q.quoteNumber.toLowerCase().includes(term)) ||
       (q.clientInfo?.clientName && q.clientInfo.clientName.toLowerCase().includes(term)) ||
       (q.clientInfo?.projectTitle && q.clientInfo.projectTitle.toLowerCase().includes(term)) ||
       (q.clientInfo?.projectCity && q.clientInfo.projectCity.toLowerCase().includes(term)) ||
+      companyProfile.shortNameAr.toLowerCase().includes(term) ||
+      companyProfile.shortNameEn.toLowerCase().includes(term) ||
       engineerName.toLowerCase().includes(term)
     );
   });
@@ -196,6 +215,50 @@ export const SavedQuotationsModal: React.FC<SavedQuotationsModalProps> = ({
               className="w-full bg-white border border-stone-300 rounded-xl pr-9 pl-3 py-2 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 font-medium"
             />
             <Search className="w-4 h-4 text-stone-400 absolute right-3 top-2.5" />
+          </div>
+
+          {/* Filter by Company buttons */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 text-xs">
+            <span className="text-[11px] font-black text-stone-500 shrink-0 ml-1 flex items-center gap-1">
+              <Building2 className="w-3.5 h-3.5 text-stone-400" />
+              <span>الشركة:</span>
+            </span>
+
+            <button
+              type="button"
+              onClick={() => setSelectedCompany('all')}
+              className={`px-3 py-1 rounded-lg font-bold text-xs transition shrink-0 whitespace-nowrap cursor-pointer ${
+                selectedCompany === 'all'
+                  ? 'bg-stone-900 text-white shadow-xs'
+                  : 'bg-white hover:bg-stone-200 text-stone-700 border border-stone-200'
+              }`}
+            >
+              جميع الشركات ({savedQuotations.length})
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setSelectedCompany('luminous')}
+              className={`px-3 py-1 rounded-lg font-bold text-xs transition shrink-0 whitespace-nowrap cursor-pointer ${
+                selectedCompany === 'luminous'
+                  ? 'bg-[#433c71] text-white shadow-xs'
+                  : 'bg-white hover:bg-stone-200 text-stone-700 border border-stone-200'
+              }`}
+            >
+              الرؤية المضيئة ({luminousCount})
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setSelectedCompany('arq')}
+              className={`px-3 py-1 rounded-lg font-bold text-xs transition shrink-0 whitespace-nowrap cursor-pointer ${
+                selectedCompany === 'arq'
+                  ? 'bg-stone-950 text-[#e8d9b8] border border-[#a6926b] shadow-xs'
+                  : 'bg-white hover:bg-stone-200 text-stone-700 border border-stone-200'
+              }`}
+            >
+              أرك للاستشارات الهندسية ARQ ({arqCount})
+            </button>
           </div>
 
           {/* Filter by Engineer buttons */}
@@ -321,19 +384,22 @@ export const SavedQuotationsModal: React.FC<SavedQuotationsModalProps> = ({
             <div className="bg-stone-50 border-2 border-dashed border-stone-200 rounded-2xl p-10 text-center space-y-2">
               <FileText className="w-8 h-8 text-stone-400 mx-auto" />
               <div className="text-xs font-bold text-stone-700">
-                {searchTerm || selectedEngineer !== 'all'
+                {searchTerm || selectedEngineer !== 'all' || selectedCompany !== 'all'
                   ? 'لا توجد عروض أسعار تطابق التصفية المحددة'
                   : 'لا توجد عروض أسعار محفوظة بالأرشيف'}
               </div>
               <p className="text-[11px] text-stone-500">
-                {searchTerm || selectedEngineer !== 'all'
-                  ? 'جرّب إلغاء التصفية أو اختيار مهندس آخر لعرض أعماله.'
+                {searchTerm || selectedEngineer !== 'all' || selectedCompany !== 'all'
+                  ? 'جرّب إلغاء التصفية أو اختيار شركة/مهندس آخر لعرض الأعمال.'
                   : 'عند إضافة البنود إلى سلة التسعير، اضغط "حفظ بالأرشيف" لحفظ العرض وتوثيقه باسم المهندس.'}
               </p>
             </div>
           ) : (
             filteredQuotes.map((q) => {
               const engineer = q.preparedBy || q.clientInfo?.preparedBy || 'م.ماجد';
+              const quoteCompanyId = resolveCompanyId(q.companyId || q.clientInfo?.companyId);
+              const quoteCompany = getCompanyProfile(quoteCompanyId);
+              const isArqQuote = quoteCompanyId === 'arq';
               const isSelected = selectedIds.includes(q.id);
 
               return (
@@ -373,9 +439,21 @@ export const SavedQuotationsModal: React.FC<SavedQuotationsModalProps> = ({
                           {q.quoteNumber}
                         </span>
 
+                        {/* Company Badge */}
+                        <span
+                          className={`text-[11px] font-black px-2 py-0.5 rounded-md border flex items-center gap-1 ${
+                            isArqQuote
+                              ? 'bg-stone-900 text-[#f3e5c8] border-stone-800'
+                              : 'bg-[#433c71]/10 text-[#433c71] border-[#433c71]/25'
+                          }`}
+                        >
+                          <Building2 className="w-3 h-3" />
+                          <span>{isArqQuote ? 'أرك ARQ' : quoteCompany.shortNameAr}</span>
+                        </span>
+
                         {/* Prominent Engineer Badge */}
-                        <span className="text-[11px] font-bold text-[#433c71] bg-[#433c71]/10 border border-[#433c71]/20 px-2.5 py-0.5 rounded-md flex items-center gap-1">
-                          <User className="w-3 h-3 text-[#e37725]" />
+                        <span className="text-[11px] font-bold text-stone-700 bg-stone-100 border border-stone-200 px-2.5 py-0.5 rounded-md flex items-center gap-1">
+                          <User className="w-3 h-3 text-amber-600" />
                           <span>
                             إعداد المهندس: <strong>{engineer}</strong>
                           </span>

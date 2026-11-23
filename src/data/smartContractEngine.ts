@@ -17,6 +17,11 @@ import {
   getActiveScopeItemsForQuotation,
   getPaymentMilestones,
 } from './masterTemplateDefaults';
+import {
+  getCompanyProfile,
+  isDefaultSecondPartyText,
+} from './companies';
+import { CompanyId } from '../types';
 
 export interface ContractTemplateMeta {
   id: ContractTemplateKind;
@@ -134,11 +139,18 @@ export function formatContractDisplayDate(dateStr?: string): string {
   return dateStr;
 }
 
-export function formatContractNumber(proposalNumber?: string): string {
+export function formatContractNumber(
+  proposalNumber?: string,
+  companyId?: CompanyId
+): string {
+  const company = getCompanyProfile(companyId);
+  const prefix = company.contractPrefix;
   const clean = (proposalNumber || '').trim();
-  if (!clean) return 'LV-C-0';
-  if (/^LV-/i.test(clean)) return clean;
-  return `LV-P-${clean}`;
+  if (!clean) return `${prefix}-C-0`;
+  if (/^(LV|ARQ)-/i.test(clean)) {
+    return clean.replace(/^(LV|ARQ)-/i, `${prefix}-`);
+  }
+  return `${prefix}-P-${clean}`;
 }
 
 /**
@@ -1156,13 +1168,19 @@ export function buildSmartContract(
     }
   }
 
+  const company = getCompanyProfile(clientInfo.companyId);
+  const resolvedContractNumber = formatContractNumber(
+    clientInfo.proposalNumber,
+    clientInfo.companyId
+  );
+
   return {
     enabled: isEnabled,
     templateKind,
     autoSynced: true,
     contractTitle,
     contractSubtitle,
-    contractNumber,
+    contractNumber: resolvedContractNumber,
     signingCity: city,
     signingDayName,
     signingDate,
@@ -1173,7 +1191,7 @@ export function buildSmartContract(
     firstPartyEmail,
     propertyDescription: defaultPropertyDesc,
     propertyRealEstateNumber,
-    secondPartyText: DEFAULT_SECOND_PARTY_TEXT,
+    secondPartyText: company.secondPartyText,
     preambleText,
     showProjectOverview,
     projectOverviewText,
@@ -1210,6 +1228,7 @@ export function resolveActiveContractData(
   items: QuotationItem[]
 ): ContractData {
   const existing = clientInfo.contractData;
+  const company = getCompanyProfile(clientInfo.companyId);
   if (!existing) {
     return buildSmartContract(clientInfo, items, undefined, false);
   }
@@ -1223,14 +1242,19 @@ export function resolveActiveContractData(
       showCompanySeal: existing.showCompanySeal !== undefined ? existing.showCompanySeal : true,
     };
   }
-  // Custom-edited contract: keep user's manual edits intact, only backfill empty party fields from clientInfo
+  // Custom-edited contract: keep user's manual edits intact, only backfill empty party fields & keep default company party synced
   return {
     ...existing,
     firstPartyName: existing.firstPartyName || clientInfo.clientName || '',
     firstPartyPhone: existing.firstPartyPhone || clientInfo.phone || '',
     firstPartyEmail: existing.firstPartyEmail || clientInfo.email || '',
     firstPartyId: existing.firstPartyId || clientInfo.nationalId || '',
-    contractNumber: existing.contractNumber || formatContractNumber(clientInfo.proposalNumber),
+    secondPartyText: isDefaultSecondPartyText(existing.secondPartyText)
+      ? company.secondPartyText
+      : existing.secondPartyText,
+    contractNumber: existing.contractNumber
+      ? formatContractNumber(existing.contractNumber, clientInfo.companyId)
+      : formatContractNumber(clientInfo.proposalNumber, clientInfo.companyId),
   };
 }
 

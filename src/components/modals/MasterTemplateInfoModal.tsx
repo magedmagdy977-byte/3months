@@ -1,20 +1,25 @@
 import React, { useState } from 'react';
 import { X, BookOpen, Layers, CheckCircle2, Sliders, ShieldCheck, FileCheck, Copy, Check } from 'lucide-react';
 import { MASTER_SCOPE_DEFINITIONS, DECOR_SCOPE_DEFINITIONS, EXCLUSION_CLAUSES, GENERAL_OWNER_OBLIGATIONS, CONDITIONAL_OWNER_OBLIGATIONS } from '../../data/masterTemplateDefaults';
+import { CompanyId } from '../../types';
+import { getCompanyProfile } from '../../data/companies';
 
 interface MasterTemplateInfoModalProps {
   isOpen: boolean;
   onClose: () => void;
+  companyId?: CompanyId;
 }
 
 export const MasterTemplateInfoModal: React.FC<MasterTemplateInfoModalProps> = ({
   isOpen,
   onClose,
+  companyId,
 }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'clauses' | 'rules'>('overview');
   const [copied, setCopied] = useState<boolean>(false);
 
   if (!isOpen) return null;
+  const company = getCompanyProfile(companyId);
 
   const handleCopyStructure = () => {
     const text = `MASTER TEMPLATE — نموذج عرض السعر الموحد
@@ -145,7 +150,7 @@ export const MasterTemplateInfoModal: React.FC<MasterTemplateInfoModalProps> = (
                 <div className="bg-stone-50 p-4 rounded-xl border border-stone-200 space-y-1.5">
                   <span className="font-black text-stone-900 text-xs block">ثانيًا: عنوان ومقدمة العرض</span>
                   <p className="text-[11px] text-stone-600 leading-relaxed">
-                    صيغة رسمية معتمدة موجهة للسيد العميل باسم مجموعة شركات الرؤية المضيئة للاستشارات الهندسية تبيّن موقع المشروع وحدوده.
+                    صيغة رسمية معتمدة موجهة للسيد العميل باسم {company.fullTitleAr} تبيّن موقع المشروع وحدوده.
                   </p>
                 </div>
 

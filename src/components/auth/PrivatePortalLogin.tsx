@@ -13,8 +13,9 @@ import {
   CheckCircle2,
   Users,
 } from 'lucide-react';
-import { LuminousLogo } from '../LuminousLogo';
-import { UserSession } from '../../types';
+import { CompanyLogo } from '../CompanyLogo';
+import { CompanyId, UserSession } from '../../types';
+import { getCompanyProfile } from '../../data/companies';
 import {
   verifyUserLogin,
   saveSession,
@@ -24,10 +25,18 @@ import {
 } from '../../lib/security';
 
 interface PrivatePortalLoginProps {
+  activeCompanyId: CompanyId;
+  onSelectCompany: (companyId: CompanyId) => void;
   onLoginSuccess: (session: UserSession) => void;
 }
 
-export const PrivatePortalLogin: React.FC<PrivatePortalLoginProps> = ({ onLoginSuccess }) => {
+export const PrivatePortalLogin: React.FC<PrivatePortalLoginProps> = ({
+  activeCompanyId,
+  onSelectCompany,
+  onLoginSuccess,
+}) => {
+  const company = getCompanyProfile(activeCompanyId);
+  const isArq = activeCompanyId === 'arq';
   const [authorizedStaff, setAuthorizedStaff] = useState<string[]>(() => getAuthorizedUsersList());
   const [engineerName, setEngineerName] = useState<string>('م.ماجد');
   const [passcode, setPasscode] = useState<string>('');
@@ -104,18 +113,58 @@ export const PrivatePortalLogin: React.FC<PrivatePortalLoginProps> = ({ onLoginS
         {/* Security Portal Card */}
         <div className="bg-stone-900/90 border border-stone-800 rounded-3xl shadow-2xl backdrop-blur-xl overflow-hidden">
           {/* Top Brand Banner */}
-          <div className="p-6 sm:p-8 text-center border-b border-stone-800/80 bg-gradient-to-b from-stone-850/80 to-stone-900/90 relative">
-            <div className="w-20 h-20 mx-auto mb-4 bg-white/95 rounded-2xl p-2.5 shadow-xl border border-stone-700/60 flex items-center justify-center">
-              <LuminousLogo variant="icon" className="w-full h-full" />
+          <div className="p-6 sm:p-7 text-center border-b border-stone-800/80 bg-gradient-to-b from-stone-850/80 to-stone-900/90 relative">
+            {/* Dual-Company Selector on Login */}
+            <div className="grid grid-cols-2 gap-2.5 mb-5">
+              <button
+                type="button"
+                onClick={() => onSelectCompany('luminous')}
+                className={`flex flex-col items-center justify-center gap-1.5 p-3 rounded-2xl border transition cursor-pointer ${
+                  !isArq
+                    ? 'bg-white text-stone-900 border-amber-400 shadow-lg ring-2 ring-amber-400/30'
+                    : 'bg-stone-950/70 text-stone-300 border-stone-700/80 hover:border-stone-500'
+                }`}
+              >
+                <div className="h-9 flex items-center justify-center">
+                  <CompanyLogo companyId="luminous" variant="icon" className="h-8 w-auto" />
+                </div>
+                <div className="text-xs font-black leading-tight">الرؤية المضيئة</div>
+                <div className={`text-[9.5px] font-mono font-bold ${!isArq ? 'text-[#e37725]' : 'text-stone-500'}`}>
+                  LUMINOUS VISION
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onSelectCompany('arq')}
+                className={`flex flex-col items-center justify-center gap-1.5 p-3 rounded-2xl border transition cursor-pointer ${
+                  isArq
+                    ? 'bg-white text-stone-900 border-[#a6926b] shadow-lg ring-2 ring-[#a6926b]/30'
+                    : 'bg-stone-950/70 text-stone-300 border-stone-700/80 hover:border-stone-500'
+                }`}
+              >
+                <div className="h-9 flex items-center justify-center">
+                  <CompanyLogo
+                    companyId="arq"
+                    variant="icon"
+                    className="h-7 w-auto"
+                    arqColor={isArq ? '#111111' : '#e7e5e4'}
+                  />
+                </div>
+                <div className="text-xs font-black leading-tight">أرك للاستشارات</div>
+                <div className={`text-[9.5px] font-mono font-bold ${isArq ? 'text-[#8a754c]' : 'text-stone-500'}`}>
+                  ARQ CONSULTANCY
+                </div>
+              </button>
             </div>
 
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-bold mb-2">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-bold mb-2">
               <ShieldCheck className="w-3.5 h-3.5" />
               <span>بوابة الاستخدام الداخلي المعتمد</span>
             </div>
 
             <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-              مجموعة شركات الرؤية المضيئة
+              {company.groupNameAr}
             </h1>
             <p className="text-xs text-stone-400 mt-1 font-medium">
               حاسبة ومولد عروض الأسعار الرسمية والعقود الموحدة
@@ -232,7 +281,7 @@ export const PrivatePortalLogin: React.FC<PrivatePortalLoginProps> = ({ onLoginS
           {/* Footer security notice */}
           <div className="px-6 py-4 bg-stone-950/70 border-t border-stone-850 text-center text-[11px] text-stone-500 flex items-center justify-center gap-2">
             <Lock className="w-3 h-3 text-stone-400" />
-            <span>نظام محمي ومشفر • مخصص حصرياً لمنسوبي مجموعة شركات الرؤية المضيئة</span>
+            <span>نظام محمي ومشفر • مخصص حصرياً لمنسوبي الرؤية المضيئة وأرك للاستشارات الهندسية</span>
           </div>
         </div>
       </div>

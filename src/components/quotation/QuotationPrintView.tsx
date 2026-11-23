@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { QuotationItem, ClientInfo, PaymentMilestone, ContractData, DocumentOutputBundle } from '../../types';
+import { CompanyId, QuotationItem, ClientInfo, PaymentMilestone, ContractData, DocumentOutputBundle } from '../../types';
 import { formatSAR, tafqeetSAR, formatNumber, generatePdfFileName, getQuotationAreaDetails } from '../../utils/formatters';
 import {
   Printer,
@@ -22,7 +22,8 @@ import {
   Sparkles,
   FileSignature,
 } from 'lucide-react';
-import { LuminousLogo } from '../LuminousLogo';
+import { CompanyLogo, CompanyOfficialSeal } from '../CompanyLogo';
+import { getCompanyProfile, resolveCompanyId } from '../../data/companies';
 import {
   MASTER_SCOPE_DEFINITIONS,
   getFormattedScopeDefinitions,
@@ -52,6 +53,7 @@ interface QuotationPrintViewProps {
   onBack: () => void;
   onPrintComplete?: () => void;
   onUpdateClientInfo?: (info: Partial<ClientInfo>) => void;
+  onSelectCompany?: (companyId: CompanyId) => void;
   initialViewMode?: QuotationViewMode;
   onViewModeChange?: (mode: QuotationViewMode) => void;
 }
@@ -108,9 +110,13 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({
   onBack,
   onPrintComplete,
   onUpdateClientInfo,
+  onSelectCompany,
   initialViewMode = 'master',
   onViewModeChange,
 }) => {
+  const activeCompanyId = resolveCompanyId(clientInfo.companyId);
+  const company = getCompanyProfile(activeCompanyId);
+  const isArq = activeCompanyId === 'arq';
   const [viewMode, setViewMode] = useState<QuotationViewMode>(initialViewMode);
 
   useEffect(() => {
@@ -348,7 +354,7 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({
 
   const handleCopyText = () => {
     const quoteLines = [
-      `عرض سعر رسمي — مجموعة شركات الرؤية المضيئة للاستشارات الهندسية`,
+      `عرض سعر رسمي — ${company.fullTitleAr}`,
       `رقم العرض: ${clientInfo.proposalNumber} | التاريخ: ${clientInfo.date}`,
       `العميل: ${clientInfo.clientName || 'العميل الكريم'} | الجوال: ${clientInfo.phone || 'غير مسجل'}`,
       `المشروع: ${clientInfo.projectTitle} (${clientInfo.buildingType})`,
@@ -400,6 +406,41 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({
               <ArrowRight className="w-4 h-4" />
               <span>العودة لبرنامج التسعير</span>
             </button>
+
+            {/* Quick Dual-Company Switcher inside Print Preview */}
+            {onSelectCompany && (
+              <div className="bg-stone-950 border border-stone-700/80 p-1 rounded-xl flex items-center gap-1 text-xs">
+                <button
+                  type="button"
+                  onClick={() => onSelectCompany('luminous')}
+                  className={`px-2.5 py-1.5 rounded-lg font-black transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                    !isArq
+                      ? 'bg-white text-[#433c71] shadow-xs'
+                      : 'text-stone-400 hover:text-white'
+                  }`}
+                >
+                  <CompanyLogo companyId="luminous" variant="icon" className="h-3.5 w-auto" />
+                  <span>الرؤية المضيئة</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onSelectCompany('arq')}
+                  className={`px-2.5 py-1.5 rounded-lg font-black transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                    isArq
+                      ? 'bg-white text-stone-950 shadow-xs'
+                      : 'text-stone-400 hover:text-white'
+                  }`}
+                >
+                  <CompanyLogo
+                    companyId="arq"
+                    variant="icon"
+                    className="h-3 w-auto"
+                    arqColor={isArq ? '#111111' : '#d6d3d1'}
+                  />
+                  <span>أرك (ARQ)</span>
+                </button>
+              </div>
+            )}
 
             {/* View Mode Switcher (hidden only when viewing contract_only) */}
             {documentBundle !== 'contract_only' && (
@@ -612,11 +653,13 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({
           />
         ) : (
           <>
-            {/* =========================================================================
-                HEADER & LETTERHEAD
-               ========================================================================= */}
+        {/* =========================================================================
+            HEADER & LETTERHEAD
+           ========================================================================= */}
         <div
-          className={`border-b-2 border-stone-900 flex flex-row items-center justify-between gap-4 shrink-0 ${
+          className={`border-b-2 ${
+            isArq ? 'border-[#1c1917]' : 'border-stone-900'
+          } flex flex-row items-center justify-between gap-4 shrink-0 ${
             density === 'comfort'
               ? 'pb-2.5 print:pb-2'
               : density === 'balanced'
@@ -624,43 +667,78 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({
               : 'pb-1.5 print:pb-1'
           }`}
         >
-          <div className="flex items-center gap-3 sm:gap-3.5 print:gap-3">
-            <div
-              className={`shrink-0 flex items-center justify-center ${
-                density === 'comfort'
-                  ? 'w-14 h-16 print:!w-14 print:!h-14'
-                  : density === 'balanced'
-                  ? 'w-13 h-15 print:!w-12 print:!h-12'
-                  : 'w-12 h-14 print:!w-10 print:!h-10'
-              }`}
-            >
-              <LuminousLogo variant="icon" className="w-full h-full" />
-            </div>
-            <div className="space-y-0.5 print:space-y-0.5">
-              <h1
-                className={`font-black text-[#433c71] tracking-tight leading-tight ${
+          {isArq ? (
+            <div className="flex items-center gap-3.5 print:gap-3">
+              <div
+                className={`shrink-0 flex items-center justify-center ${
                   density === 'comfort'
-                    ? 'text-lg sm:text-xl print:text-[17px]'
+                    ? 'h-16 print:!h-14'
                     : density === 'balanced'
-                    ? 'text-lg sm:text-xl print:text-[15.5px]'
-                    : 'text-base sm:text-lg print:text-[14px]'
+                    ? 'h-14 print:!h-12'
+                    : 'h-12 print:!h-11'
                 }`}
               >
-                مجموعة شركات الرؤية المضيئة
-              </h1>
-              <div className="flex items-center gap-2 text-xs print:text-[10.5px] font-black">
-                <span dir="ltr" className="inline-flex items-center gap-1.5 tracking-wider font-black">
-                  <span className="text-[#433c71]">LUMINOUS</span>
-                  <span className="text-[#e37725]">VISION</span>
-                </span>
-                <span className="text-stone-400">•</span>
-                <span className="text-stone-700 font-bold">للاستشارات الهندسية والتصميم</span>
+                <CompanyLogo companyId="arq" variant="full" className="h-full w-auto" color="#111111" />
               </div>
-              <p className="text-[10px] print:text-[8.5px] text-stone-500 font-medium leading-tight">
-                تصميم معماري وإنشائي وكهروميكانيكي • كود البناء السعودي SBC • رخص بلدي • إشراف هندسي • دفاع مدني
-              </p>
+              <div className="border-r border-[#d4cfc3] pr-3 space-y-0.5">
+                <h1
+                  className={`font-black text-[#1c1917] tracking-tight leading-tight ${
+                    density === 'comfort'
+                      ? 'text-base sm:text-lg print:text-[15.5px]'
+                      : density === 'balanced'
+                      ? 'text-base print:text-[14px]'
+                      : 'text-sm sm:text-base print:text-[13px]'
+                  }`}
+                >
+                  {company.fullNameAr}
+                </h1>
+                <div className="text-[10.5px] print:text-[9px] font-extrabold text-[#a6926b] tracking-wider font-mono" dir="ltr">
+                  ARQ ENGINEERING CONSULTANCY
+                </div>
+                <p className="text-[10px] print:text-[8.5px] text-stone-500 font-medium leading-tight">
+                  {company.credentialsLineAr}
+                </p>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="flex items-center gap-3 sm:gap-3.5 print:gap-3">
+              <div
+                className={`shrink-0 flex items-center justify-center ${
+                  density === 'comfort'
+                    ? 'w-14 h-16 print:!w-14 print:!h-14'
+                    : density === 'balanced'
+                    ? 'w-13 h-15 print:!w-12 print:!h-12'
+                    : 'w-12 h-14 print:!w-10 print:!h-10'
+                }`}
+              >
+                <CompanyLogo companyId="luminous" variant="icon" className="w-full h-full" />
+              </div>
+              <div className="space-y-0.5 print:space-y-0.5">
+                <h1
+                  className={`font-black text-[#433c71] tracking-tight leading-tight ${
+                    density === 'comfort'
+                      ? 'text-lg sm:text-xl print:text-[17px]'
+                      : density === 'balanced'
+                      ? 'text-lg sm:text-xl print:text-[15.5px]'
+                      : 'text-base sm:text-lg print:text-[14px]'
+                  }`}
+                >
+                  {company.groupNameAr}
+                </h1>
+                <div className="flex items-center gap-2 text-xs print:text-[10.5px] font-black">
+                  <span dir="ltr" className="inline-flex items-center gap-1.5 tracking-wider font-black">
+                    <span className="text-[#433c71]">LUMINOUS</span>
+                    <span className="text-[#e37725]">VISION</span>
+                  </span>
+                  <span className="text-stone-400">•</span>
+                  <span className="text-stone-700 font-bold">{company.subtitleAr}</span>
+                </div>
+                <p className="text-[10px] print:text-[8.5px] text-stone-500 font-medium leading-tight">
+                  {company.credentialsLineAr}
+                </p>
+              </div>
+            </div>
+          )}
 
           <div className="text-left space-y-0.5 text-xs border-r border-stone-200 pr-3 sm:border-r-0 sm:pr-0 print:border-r-0 shrink-0">
             <div className="text-stone-600 font-mono text-[11px] print:text-[9.5px] leading-snug">
@@ -674,7 +752,11 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({
                 إعداد: <strong className="text-stone-900">{clientInfo.preparedBy}</strong>
               </div>
             )}
-            <div className="text-[10.5px] print:text-[9px] text-amber-700 font-bold leading-snug">
+            <div
+              className={`text-[10.5px] print:text-[9px] font-bold leading-snug ${
+                isArq ? 'text-[#8a754c]' : 'text-amber-700'
+              }`}
+            >
               صلاحية العرض: {clientInfo.validityDays || 30} يوماً
             </div>
           </div>
@@ -693,7 +775,9 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({
           }`}
         >
           <h2
-            className={`font-black text-[#433c71] tracking-tight leading-tight ${
+            className={`font-black tracking-tight leading-tight ${
+              isArq ? 'text-[#1c1917]' : 'text-[#433c71]'
+            } ${
               density === 'comfort'
                 ? 'text-lg sm:text-xl print:text-[16.5px]'
                 : density === 'balanced'
@@ -723,7 +807,11 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({
           <div className="flex-1 flex flex-col justify-between pt-1.5 print:pt-1">
             {/* أولًا: بيانات العرض والمشروع */}
             <section className="space-y-1 print:space-y-1 break-inside-avoid">
-              <div className="text-xs print:text-[10.5px] font-black text-[#433c71] uppercase tracking-wide border-r-4 print:border-r-3 border-[#e37725] pr-2 print:pr-1.5">
+              <div
+                className={`text-xs print:text-[10.5px] font-black uppercase tracking-wide border-r-4 print:border-r-3 pr-2 print:pr-1.5 ${
+                  isArq ? 'text-[#1c1917] border-[#a6926b]' : 'text-[#433c71] border-[#e37725]'
+                }`}
+              >
                 أولًا: بيانات العرض والمشروع
               </div>
 
@@ -869,7 +957,11 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({
 
             {/* ثانيًا: مقدمة العرض */}
             <section className="space-y-1 print:space-y-1 break-inside-avoid">
-              <div className="text-xs print:text-[10.5px] font-black text-[#433c71] uppercase tracking-wide border-r-4 print:border-r-3 border-[#e37725] pr-2 print:pr-1.5">
+              <div
+                className={`text-xs print:text-[10.5px] font-black uppercase tracking-wide border-r-4 print:border-r-3 pr-2 print:pr-1.5 ${
+                  isArq ? 'text-[#1c1917] border-[#a6926b]' : 'text-[#433c71] border-[#e37725]'
+                }`}
+              >
                 ثانيًا: مقدمة العرض
               </div>
 
@@ -886,7 +978,7 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({
                   السيد/ <strong className="text-stone-900">{clientInfo.clientName || 'العميل المحترم'}</strong> المحترم،
                 </p>
                 <p className="text-justify">
-                  بناءً على طلبكم، يسر شركة <strong>الرؤية المضيئة للاستشارات الهندسية</strong> أن تقدم لسعادتكم عرض السعر الخاص بأعمال{' '}
+                  بناءً على طلبكم، يسر <strong>{company.fullNameAr}</strong> أن تقدم لسعادتكم عرض السعر الخاص بأعمال{' '}
                   <strong className="text-stone-900">{clientInfo.serviceType}</strong> لمشروع{' '}
                   <strong className="text-stone-900">{clientInfo.buildingType}</strong>، والكائن بمدينة{' '}
                   <strong className="text-stone-900">{clientInfo.projectCity}</strong>، حي{' '}
@@ -900,7 +992,11 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({
 
             {/* ثالثًا: نطاق أعمال الاستشاري — وحدات شرطية بتنسيق شبكي متناسق */}
             <section className="space-y-1 print:space-y-1">
-              <div className="text-xs print:text-[10.5px] font-black text-[#433c71] uppercase tracking-wide border-r-4 print:border-r-3 border-[#e37725] pr-2 print:pr-1.5 flex justify-between items-center">
+              <div
+                className={`text-xs print:text-[10.5px] font-black uppercase tracking-wide border-r-4 print:border-r-3 pr-2 print:pr-1.5 flex justify-between items-center ${
+                  isArq ? 'text-[#1c1917] border-[#a6926b]' : 'text-[#433c71] border-[#e37725]'
+                }`}
+              >
                 <span>ثالثًا: نطاق أعمال الاستشاري المعتمد</span>
                 <span className="text-[10px] print:text-[8.5px] text-stone-500 font-bold">
                   ({activeScopeItems.length} وحدات هندسية مشمولة)
@@ -935,7 +1031,11 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({
                       >
                         <div className="flex items-start gap-2 print:gap-1.5">
                           <span
-                            className={`rounded-md bg-[#433c71]/10 text-[#433c71] font-black flex items-center justify-center shrink-0 mt-0.5 ${
+                            className={`rounded-md font-black flex items-center justify-center shrink-0 mt-0.5 ${
+                              isArq
+                                ? 'bg-[#1c1917]/10 text-[#1c1917]'
+                                : 'bg-[#433c71]/10 text-[#433c71]'
+                            } ${
                               density === 'comfort'
                                 ? 'w-5 h-5 print:w-4.5 print:h-4.5 text-[10px] print:text-[9px]'
                                 : 'w-4 h-4 print:w-4 print:h-4 text-[10px] print:text-[8px]'
@@ -983,7 +1083,11 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({
 
             {/* رابعًا: الشروط والالتزامات العامة والتنفيذية */}
             <section className="space-y-1 print:space-y-1 break-inside-avoid">
-              <div className="text-xs print:text-[10.5px] font-black text-[#433c71] uppercase tracking-wide border-r-4 print:border-r-3 border-[#e37725] pr-2 print:pr-1.5">
+              <div
+                className={`text-xs print:text-[10.5px] font-black uppercase tracking-wide border-r-4 print:border-r-3 pr-2 print:pr-1.5 ${
+                  isArq ? 'text-[#1c1917] border-[#a6926b]' : 'text-[#433c71] border-[#e37725]'
+                }`}
+              >
                 رابعًا: الشروط والالتزامات العامة والتنفيذية
               </div>
 
@@ -1096,7 +1200,11 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-12 print:grid-cols-12 gap-2.5 print:gap-2 items-stretch break-inside-avoid">
               {/* خامسًا: الأسعار والبيان المالي (7 Cols) */}
               <section className="sm:col-span-7 print:col-span-7 flex flex-col justify-between space-y-1 print:space-y-1">
-                <div className="text-xs print:text-[10.5px] font-black text-[#433c71] uppercase tracking-wide border-r-4 print:border-r-3 border-[#e37725] pr-2 print:pr-1.5">
+                <div
+                  className={`text-xs print:text-[10.5px] font-black uppercase tracking-wide border-r-4 print:border-r-3 pr-2 print:pr-1.5 ${
+                    isArq ? 'text-[#1c1917] border-[#a6926b]' : 'text-[#433c71] border-[#e37725]'
+                  }`}
+                >
                   خامسًا: الأسعار والبيان المالي
                 </div>
 
@@ -1246,7 +1354,11 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({
               {/* سادسًا: جدول سداد الدفعات والبيانات البنكية (5 Cols) */}
               <section className="sm:col-span-5 print:col-span-5 flex flex-col justify-between space-y-1 print:space-y-1">
                 <div className="flex items-center justify-between">
-                  <div className="text-xs print:text-[10.5px] font-black text-[#433c71] uppercase tracking-wide border-r-4 print:border-r-3 border-[#e37725] pr-2 print:pr-1.5">
+                  <div
+                    className={`text-xs print:text-[10.5px] font-black uppercase tracking-wide border-r-4 print:border-r-3 pr-2 print:pr-1.5 ${
+                      isArq ? 'text-[#1c1917] border-[#a6926b]' : 'text-[#433c71] border-[#e37725]'
+                    }`}
+                  >
                     سادسًا: جدول الدفعات والبنك
                   </div>
                   <button
@@ -1334,30 +1446,22 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({
 
                 <div className="space-y-1 print:space-y-0.5 text-left">
                   <div className="font-black text-stone-900 text-xs sm:text-sm print:text-[10px]">
-                    اعتماد شركة الرؤية المضيئة للاستشارات الهندسية:
+                    اعتماد {company.fullNameAr}:
                   </div>
                   <div className="text-[11px] print:text-[9px] text-stone-700 font-bold">
                     إعداد المهندس:{' '}
                     <span className="text-stone-950 font-black">{cleanEngineerName(clientInfo.preparedBy)}</span>
                   </div>
                   <div className="flex justify-end pt-0.5 print:pt-0">
-                    <img
-                      src="/official-seal.png"
-                      onError={(e) => {
-                        const target = e.currentTarget;
-                        if (target.src.indexOf('/official-emblem.svg') === -1) {
-                          target.src = '/official-emblem.svg';
-                        }
-                      }}
-                      alt="ختم واعتماد شركة الرؤية المضيئة للاستشارات الهندسية"
-                      className={`w-auto object-contain select-none ${
+                    <CompanyOfficialSeal
+                      companyId={activeCompanyId}
+                      className={`w-auto ${
                         density === 'comfort'
                           ? 'h-16 sm:h-18 print:!h-14 max-w-[140px] print:max-w-[130px]'
                           : density === 'balanced'
                           ? 'h-14 sm:h-16 print:!h-12 max-w-[130px] print:max-w-[115px]'
                           : 'h-12 sm:h-14 print:!h-10 max-w-[120px] print:max-w-[100px]'
                       }`}
-                      loading="eager"
                     />
                   </div>
                 </div>
@@ -1366,7 +1470,7 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({
               {/* Document Print Footer */}
               <div className="flex items-center justify-between text-[9px] print:text-[7.5px] text-stone-400 pt-1 border-t border-stone-200 break-inside-avoid">
                 <span>
-                  مجموعة شركات الرؤية المضيئة للاستشارات الهندسية والتصميم • عرض سعر رقم {clientInfo.proposalNumber} • س.ت: 1010788646
+                  {company.fullTitleAr} • عرض سعر رقم {clientInfo.proposalNumber} • س.ت: {company.crNumber}
                 </span>
                 <span className="font-bold">وثيقة عرض سعر معتمدة رسمياً</span>
               </div>
@@ -1587,24 +1691,16 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({
 
                 <div className="space-y-1 print:space-y-0.5 text-left">
                   <div className="font-black text-stone-900 text-xs sm:text-sm print:text-[10px]">
-                    اعتماد شركة الرؤية المضيئة للاستشارات الهندسية:
+                    اعتماد {company.fullNameAr}:
                   </div>
                   <div className="text-[11px] print:text-[9px] text-stone-700 font-bold">
                     إعداد المهندس:{' '}
                     <span className="text-stone-950 font-black">{cleanEngineerName(clientInfo.preparedBy)}</span>
                   </div>
                   <div className="flex justify-end pt-0.5 print:pt-0">
-                    <img
-                      src="/official-seal.png"
-                      onError={(e) => {
-                        const target = e.currentTarget;
-                        if (target.src.indexOf('/official-emblem.svg') === -1) {
-                          target.src = '/official-emblem.svg';
-                        }
-                      }}
-                      alt="ختم واعتماد شركة الرؤية المضيئة للاستشارات الهندسية"
-                      className="h-16 sm:h-18 print:!h-14 max-w-[140px] print:max-w-[130px] w-auto object-contain select-none"
-                      loading="eager"
+                    <CompanyOfficialSeal
+                      companyId={activeCompanyId}
+                      className="h-16 sm:h-18 print:!h-14 max-w-[140px] print:max-w-[130px] w-auto"
                     />
                   </div>
                 </div>
@@ -1612,7 +1708,7 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({
 
               <div className="flex items-center justify-between text-[9px] print:text-[7.5px] text-stone-400 pt-1 border-t border-stone-200 break-inside-avoid">
                 <span>
-                  مجموعة شركات الرؤية المضيئة للاستشارات الهندسية والتصميم • عرض سعر رقم {clientInfo.proposalNumber} • س.ت: 1010788646
+                  {company.fullTitleAr} • عرض سعر رقم {clientInfo.proposalNumber} • س.ت: {company.crNumber}
                 </span>
                 <span className="font-bold">وثيقة عرض سعر معتمدة رسمياً</span>
               </div>

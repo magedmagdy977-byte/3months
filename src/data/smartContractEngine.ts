@@ -16,6 +16,7 @@ import {
 import {
   getActiveScopeItemsForQuotation,
   getPaymentMilestones,
+  getScopeItemOverride,
 } from './masterTemplateDefaults';
 import {
   getCompanyProfile,
@@ -230,28 +231,36 @@ function buildDesignScopeGroups(
   const flags = clientInfo.scopeFlags;
   const groups: ContractScopeSubgroup[] = [];
 
+  const parseCustomLines = (text: string): string[] => {
+    const lines = text
+      .split(/\r?\n/)
+      .map((line) => line.replace(/^[-•*]\s*/, '').trim())
+      .filter(Boolean);
+    return lines.length > 0 ? lines : [text.trim()];
+  };
+
   const showSurvey = includeLicenseAndSurvey ? flags?.survey !== false : Boolean(flags?.survey);
   if (showSurvey) {
+    const ov = getScopeItemOverride(clientInfo, 'survey');
     groups.push({
       id: 'scope-survey',
-      title: 'الرفع المساحي :',
-      items: ['التقرير المساحي والرفع المساحي للأرض ولمناسيب الأرض الطبيعية والشوارع المحيطة.'],
+      title: `${ov?.title?.trim() || 'الرفع المساحي'} :`,
+      items: ov?.description?.trim()
+        ? parseCustomLines(ov.description)
+        : ['التقرير المساحي والرفع المساحي للأرض ولمناسيب الأرض الطبيعية والشوارع المحيطة.'],
       layout: 'list',
     });
   }
 
   if (flags?.architectural !== false) {
-    const archTitle = clientInfo.architecturalScopeCustomTitle?.trim() || 'التصاميم المعمارية';
-    const customArchDesc = clientInfo.architecturalScopeCustomDescription?.trim();
+    const ov = getScopeItemOverride(clientInfo, 'architectural');
+    const archTitle = ov?.title?.trim() || 'التصاميم المعمارية';
+    const customArchDesc = ov?.description?.trim();
     if (customArchDesc) {
-      const customLines = customArchDesc
-        .split(/\r?\n/)
-        .map((line) => line.replace(/^[-•*]\s*/, '').trim())
-        .filter(Boolean);
       groups.push({
         id: 'scope-arch-custom',
         title: `${archTitle} :`,
-        items: customLines.length > 0 ? customLines : [customArchDesc],
+        items: parseCustomLines(customArchDesc),
         layout: 'list',
       });
     } else {
@@ -278,91 +287,137 @@ function buildDesignScopeGroups(
   }
 
   if (flags?.structural !== false) {
+    const ov = getScopeItemOverride(clientInfo, 'structural');
     groups.push({
       id: 'scope-structural',
-      title: 'المخططات الإنشائية :',
-      items: [
-        'جدول الرموز وقائمة المخططات.',
-        'مخططات تسليح الأسقف للأدوار المختلفة.',
-        'التفاصيل النمطية الإنشائية.',
-        'الجداول الإنشائية لكافة العناصر الإنشائية.',
-        'مخططات المحاور والأعمدة.',
-        'مخططات الخزانات.',
-        'مخططات الأساسات.',
-        'مخططات السلالم والعناصر الإنشائية الفرعية.',
-      ],
+      title: `${ov?.title?.trim() || 'المخططات الإنشائية'} :`,
+      items: ov?.description?.trim()
+        ? parseCustomLines(ov.description)
+        : [
+            'جدول الرموز وقائمة المخططات.',
+            'مخططات تسليح الأسقف للأدوار المختلفة.',
+            'التفاصيل النمطية الإنشائية.',
+            'الجداول الإنشائية لكافة العناصر الإنشائية.',
+            'مخططات المحاور والأعمدة.',
+            'مخططات الخزانات.',
+            'مخططات الأساسات.',
+            'مخططات السلالم والعناصر الإنشائية الفرعية.',
+          ],
       layout: 'list',
     });
   }
 
   if (flags?.electrical !== false) {
+    const ov = getScopeItemOverride(clientInfo, 'electrical');
     groups.push({
       id: 'scope-electrical',
-      title: 'المخططات الكهربائية :',
-      items: [
-        'مخطط اللوحات الرئيسية والفرعية.',
-        'مخططات أحمال القوى الصغرى والكبرى.',
-        'مخطط أحادي القوى للمشروع.',
-        'مخططات التيار الخفيف (الجهد المنخفض).',
-        'مخطط مسارات الكابلات وحوامل الكابلات.',
-        'مخططات التأريض وموانع الصواعق.',
-        'مخططات توزيع الإنارة.',
-      ],
+      title: `${ov?.title?.trim() || 'المخططات الكهربائية'} :`,
+      items: ov?.description?.trim()
+        ? parseCustomLines(ov.description)
+        : [
+            'مخطط اللوحات الرئيسية والفرعية.',
+            'مخططات أحمال القوى الصغرى والكبرى.',
+            'مخطط أحادي القوى للمشروع.',
+            'مخططات التيار الخفيف (الجهد المنخفض).',
+            'مخطط مسارات الكابلات وحوامل الكابلات.',
+            'مخططات التأريض وموانع الصواعق.',
+            'مخططات توزيع الإنارة.',
+          ],
       layout: 'list',
     });
   }
 
   if (flags?.hvac !== false) {
+    const ov = getScopeItemOverride(clientInfo, 'hvac');
     groups.push({
       id: 'scope-hvac',
-      title: 'مخططات التكييف :',
-      items: [
-        'حساب الحمل الحراري.',
-        'مخطط وحدات التكييف الداخلية والخارجية.',
-        'مخطط دكت التكييف.',
-        'مخطط مراوح الشفط والتهوية.',
-      ],
+      title: `${ov?.title?.trim() || 'مخططات التكييف'} :`,
+      items: ov?.description?.trim()
+        ? parseCustomLines(ov.description)
+        : [
+            'حساب الحمل الحراري.',
+            'مخطط وحدات التكييف الداخلية والخارجية.',
+            'مخطط دكت التكييف.',
+            'مخطط مراوح الشفط والتهوية.',
+          ],
       layout: 'list',
     });
   }
 
   if (flags?.plumbing !== false) {
+    const ov = getScopeItemOverride(clientInfo, 'plumbing');
     groups.push({
       id: 'scope-plumbing',
-      title: 'المخططات الصحية :',
-      items: [
-        'مخطط الصرف الصحي وصرف الأمطار.',
-        'مخطط الخزانات وشبكتها.',
-        'مخطط التغذية المائية.',
-        'حساب أحمال مضخات المياه والصرف.',
-      ],
-      layout: 'two_column',
+      title: `${ov?.title?.trim() || 'المخططات الصحية'} :`,
+      items: ov?.description?.trim()
+        ? parseCustomLines(ov.description)
+        : [
+            'مخطط الصرف الصحي وصرف الأمطار.',
+            'مخطط الخزانات وشبكتها.',
+            'مخطط التغذية المائية.',
+            'حساب أحمال مضخات المياه والصرف.',
+          ],
+      layout: ov?.description?.trim() ? 'list' : 'two_column',
     });
   }
 
   if (flags?.civilDefense) {
+    const ov = getScopeItemOverride(clientInfo, 'civilDefense');
     groups.push({
       id: 'scope-cd',
-      title: 'مخططات الأمن والسلامة (الدفاع المدني) :',
-      items: [
-        'مخططات شبكات الإنذار المبكر وكواشف الدخان والحرارة طبقاً لكود البناء السعودي SBC 801.',
-        'مخططات أنظمة الإطفاء ومخارج الطوارئ ولوحات الإرشاد.',
-        'رفع المخططات ومتابعة الاعتماد عبر الجهات المختصة.',
-      ],
+      title: `${ov?.title?.trim() || 'مخططات الأمن والسلامة (الدفاع المدني)'} :`,
+      items: ov?.description?.trim()
+        ? parseCustomLines(ov.description)
+        : [
+            'مخططات شبكات الإنذار المبكر وكواشف الدخان والحرارة طبقاً لكود البناء السعودي SBC 801.',
+            'مخططات أنظمة الإطفاء ومخارج الطوارئ ولوحات الإرشاد.',
+            'رفع المخططات ومتابعة الاعتماد عبر الجهات المختصة.',
+          ],
       layout: 'list',
     });
   }
 
   if (includeLicenseAndSurvey && flags?.buildingLicense) {
+    const ov = getScopeItemOverride(clientInfo, 'buildingLicense');
     groups.push({
       id: 'scope-license',
-      title: 'إصدار رخصة البناء :',
-      items: [
-        'استكمال متطلبات كود البناء السعودي وكود الطاقة والعزل الحراري.',
-        'التقديم والمتابعة عبر منصة بلدي حتى إصدار رخصة البناء المعتمدة.',
-      ],
+      title: `${ov?.title?.trim() || 'إصدار رخصة البناء'} :`,
+      items: ov?.description?.trim()
+        ? parseCustomLines(ov.description)
+        : [
+            'استكمال متطلبات كود البناء السعودي وكود الطاقة والعزل الحراري.',
+            'التقديم والمتابعة عبر منصة بلدي حتى إصدار رخصة البناء المعتمدة.',
+          ],
       layout: 'list',
     });
+  }
+
+  if (flags?.asBuiltCorrection) {
+    const ov = getScopeItemOverride(clientInfo, 'asBuiltCorrection');
+    if (ov?.title?.trim() || ov?.description?.trim()) {
+      groups.push({
+        id: 'scope-as-built-custom',
+        title: `${ov?.title?.trim() || 'تصحيح وضع مبنى قائم'} :`,
+        items: ov?.description?.trim()
+          ? parseCustomLines(ov.description)
+          : ['إعداد التقرير الخاص بالمبنى وشهادة التحمل ومخططات الوضع القائم والتقديم على خدمة تصحيح وضع مبنى قائم.'],
+        layout: 'list',
+      });
+    }
+  }
+
+  if (flags?.modifyComponents) {
+    const ov = getScopeItemOverride(clientInfo, 'modifyComponents');
+    if (ov?.title?.trim() || ov?.description?.trim()) {
+      groups.push({
+        id: 'scope-modify-custom',
+        title: `${ov?.title?.trim() || 'تعديل مكونات البناء'} :`,
+        items: ov?.description?.trim()
+          ? parseCustomLines(ov.description)
+          : ['مراجعة الرخصة والمخططات القائمة وإعداد المخططات والتعديلات الهندسية المطلوبة والتقديم على إجراء تعديل مكونات البناء.'],
+        layout: 'list',
+      });
+    }
   }
 
   if (groups.length === 0) {

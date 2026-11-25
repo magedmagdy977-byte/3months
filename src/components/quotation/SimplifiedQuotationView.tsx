@@ -40,47 +40,34 @@ const getCleanSubtitleLines = (clientInfo: ClientInfo): { line1: string; line2: 
   return { line1, line2 };
 };
 
-const getSimplifiedScopeTitle = (id: string, defaultName: string): string => {
-  switch (id) {
-    case 'survey':
-      return 'الرفع المساحي';
-    case 'architectural':
-      return defaultName && defaultName.trim() !== 'التصاميم المعمارية'
-        ? defaultName.trim()
-        : 'التصاميم المعمارية';
-    case 'structural':
-      return 'المخططات الإنشائية';
-    case 'electrical':
-      return 'المخططات الكهربائية';
-    case 'hvac':
-      return 'مخططات التكييف والتهوية';
-    case 'plumbing':
-      return 'مخططات السباكة';
-    case 'buildingLicense':
-      return 'إصدار رخصة البناء';
-    case 'civilDefense':
-      return 'مخططات الأمن والسلامة';
-    case 'supervision':
-      return 'الإشراف الهندسي';
-    case 'asBuiltCorrection':
-      return 'تصحيح وضع مبنى قائم';
-    case 'modifyComponents':
-      return 'تعديل مكونات البناء';
-    case 'decor_as_built':
-      return 'رفع مساحي للموقع';
-    case 'decor_moodboard':
-      return 'لوحة الأفكار والمود بورد';
-    case 'decor_3d_renders':
-      return 'مناظير ثلاثية الأبعاد 3D';
-    case 'decor_shop_drawings':
-      return 'المخططات التنفيذية';
-    case 'decor_specifications':
-      return 'جداول المواصفات والمواد';
-    case 'decor_boq':
-      return 'جداول الكميات BOQ';
-    default:
-      return defaultName;
+const DEFAULT_SCOPE_TITLES: Record<string, { full: string; short: string }> = {
+  survey: { full: 'الرفع المساحي', short: 'الرفع المساحي' },
+  architectural: { full: 'التصاميم المعمارية', short: 'التصاميم المعمارية' },
+  structural: { full: 'المخططات الإنشائية', short: 'المخططات الإنشائية' },
+  electrical: { full: 'المخططات الكهربائية', short: 'المخططات الكهربائية' },
+  hvac: { full: 'مخططات التكييف والتهوية', short: 'مخططات التكييف والتهوية' },
+  plumbing: { full: 'مخططات الصرف الصحي (السباكة)', short: 'مخططات السباكة' },
+  buildingLicense: { full: 'إصدار رخصة البناء', short: 'إصدار رخصة البناء' },
+  civilDefense: { full: 'مخططات الأمن والسلامة', short: 'مخططات الأمن والسلامة' },
+  supervision: { full: 'الإشراف الهندسي', short: 'الإشراف الهندسي' },
+  asBuiltCorrection: { full: 'تصحيح وضع مبنى قائم', short: 'تصحيح وضع مبنى قائم' },
+  modifyComponents: { full: 'تعديل مكونات البناء', short: 'تعديل مكونات البناء' },
+  decor_as_built: { full: 'رفع مساحي As-Built للموقع', short: 'رفع مساحي للموقع' },
+  decor_moodboard: { full: 'لوحة أفكار ومود بورد (Moodboard)', short: 'لوحة الأفكار والمود بورد' },
+  decor_3d_renders: { full: 'لقطات وتصاميم ثلاثية الأبعاد (3D Renders)', short: 'مناظير ثلاثية الأبعاد 3D' },
+  decor_shop_drawings: { full: 'المخططات التنفيذية التفصيلية (Shop Drawings)', short: 'المخططات التنفيذية' },
+  decor_specifications: { full: 'جداول المواصفات واختيار المواد (Specifications)', short: 'جداول المواصفات والمواد' },
+  decor_boq: { full: 'جداول الكميات وحصر المواد (BOQ)', short: 'جداول الكميات BOQ' },
+};
+
+const getSimplifiedScopeTitle = (id: string, resolvedName: string): string => {
+  const entry = DEFAULT_SCOPE_TITLES[id];
+  const trimmed = (resolvedName || '').trim();
+  if (!entry) return trimmed;
+  if (trimmed && trimmed !== entry.full && trimmed !== 'رخصة تعديل مكونات بناء') {
+    return trimmed;
   }
+  return trimmed === 'رخصة تعديل مكونات بناء' ? trimmed : entry.short;
 };
 
 const getSimplifiedMilestoneLabel = (milestone: PaymentMilestone, index: number, total: number): string => {

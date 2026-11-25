@@ -7,12 +7,14 @@ import {
   MASTER_SCOPE_DEFINITIONS,
   DECOR_SCOPE_DEFINITIONS,
   getFormattedScopeDefinitions,
+  resolveScopeItemContent,
   EXCLUSION_CLAUSES,
   autoDetectScopeFlags,
   autoDetectExclusions,
   getPaymentMilestones,
   getDefaultMilestonesForType,
 } from '../../data/masterTemplateDefaults';
+import { ScopeItemManualEditor } from './ScopeItemManualEditor';
 import {
   CONTRACT_TEMPLATE_CATALOG,
   buildSmartContract,
@@ -109,12 +111,8 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
   const [newDetailInput, setNewDetailInput] = useState<string>('');
   const [supervisionNewBullet, setSupervisionNewBullet] = useState<string>('');
 
-  // Architectural scope manual edit state
-  const [showArchitecturalScopeEditor, setShowArchitecturalScopeEditor] = useState<boolean>(true);
-  const [architecturalAdditionInput, setArchitecturalAdditionInput] = useState<string>('');
-
-  // Supervision scope manual edit state
-  const [showSupervisionScopeEditor, setShowSupervisionScopeEditor] = useState<boolean>(true);
+  // Universal manual scope editor expand/collapse state for ALL conditional scope items
+  const [expandedScopeEditors, setExpandedScopeEditors] = useState<Record<string, boolean>>({});
 
   // Google Docs and Word export state
   const [isGoogleDocModalOpen, setIsGoogleDocModalOpen] = useState<boolean>(false);
@@ -486,47 +484,100 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
       ? clientInfo.supervisionScopeCustomBullets
       : defaultSupervisionBullets;
 
-  const handleAddSupervisionBullet = () => {
-    if (!supervisionNewBullet.trim()) return;
-    const updated = [...currentSupervisionBullets, supervisionNewBullet.trim()];
-    onUpdateClientInfo({ supervisionScopeCustomBullets: updated });
-    setSupervisionNewBullet('');
-  };
-
-  const defaultArchitecturalDescription =
-    MASTER_SCOPE_DEFINITIONS.find((d) => d.id === 'architectural')?.description || '';
-
-  const currentArchitecturalDescription =
-    clientInfo.architecturalScopeCustomDescription !== undefined
-      ? clientInfo.architecturalScopeCustomDescription
-      : defaultArchitecturalDescription;
-
-  const isArchitecturalCustomized =
-    (clientInfo.architecturalScopeCustomTitle !== undefined &&
-      clientInfo.architecturalScopeCustomTitle.trim() !== '' &&
-      clientInfo.architecturalScopeCustomTitle.trim() !== 'التصاميم المعمارية') ||
-    (clientInfo.architecturalScopeCustomDescription !== undefined &&
-      clientInfo.architecturalScopeCustomDescription.trim() !== defaultArchitecturalDescription.trim());
-
-  const handleAppendArchitecturalPhrase = (phrase: string) => {
-    const cleanPhrase = phrase.trim();
-    if (!cleanPhrase) return;
-    const base = currentArchitecturalDescription.trim();
-    if (!base) {
-      onUpdateClientInfo({ architecturalScopeCustomDescription: `${cleanPhrase}.` });
-      return;
+  const handleUpdateSupervisionBullets = (nextBullets: string[]) => {
+    const existingOverrides = { ...(clientInfo.customScopeOverrides || {}) };
+    if (existingOverrides.supervision) {
+      const { description: _removed, ...restSup } = existingOverrides.supervision;
+      if (Object.keys(restSup).length > 0) {
+        existingOverrides.supervision = restSup;
+      } else {
+        delete existingOverrides.supervision;
+      }
     }
-    const withoutTrailingDot = base.replace(/[.،؛]+$/, '').trim();
     onUpdateClientInfo({
-      architecturalScopeCustomDescription: `${withoutTrailingDot}، ${cleanPhrase}.`,
+      supervisionScopeCustomBullets: nextBullets,
+      supervisionScopeCustomDescription: undefined,
+      customScopeOverrides: Object.keys(existingOverrides).length > 0 ? existingOverrides : undefined,
     });
   };
 
-  const handleAddArchitecturalCustomText = () => {
-    if (!architecturalAdditionInput.trim()) return;
-    handleAppendArchitecturalPhrase(architecturalAdditionInput);
-    setArchitecturalAdditionInput('');
+  const handleAddSupervisionBullet = () => {
+    if (!supervisionNewBullet.trim()) return;
+    const updated = [...currentSupervisionBullets, supervisionNewBullet.trim()];
+    handleUpdateSupervisionBullets(updated);
+    setSupervisionNewBullet('');
   };
+
+  const toggleScopeEditor = (id: keyof MasterTemplateScopeFlags) => {
+    setExpandedScopeEditors((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  };
+
+  const handleUpdateScopeOverride = (
+    id: keyof MasterTemplateScopeFlags,
+    patch: { title?: string; description?: string }
+  ) => {
+    const existingOverrides = clientInfo.customScopeOverrides || {};
+    const existingForId = existingOverrides[id] || {};
+    const nextOverrides = {
+      ...existingOverrides,
+      [id]: {
+        ...existingForId,
+        ...patch,
+      },
+    };
+    const updatePayload: Partial<ClientInfo> = {
+      customScopeOverrides: nextOverrides,
+    };
+    if (id === 'architectural') {
+      if (patch.title !== undefined) updatePayload.architecturalScopeCustomTitle = patch.title;
+      if (patch.description !== undefined) updatePayload.architecturalScopeCustomDescription = patch.description;
+    }
+    if (id === 'supervision') {
+      if (patch.title !== undefined) updatePayload.supervisionScopeCustomTitle = patch.title;
+      if (patch.description !== undefined) updatePayload.supervisionScopeCustomDescription = patch.description;
+    }
+    onUpdateClientInfo(updatePayload);
+  };
+
+  const handleResetScopeOverride = (id: keyof MasterTemplateScopeFlags) => {
+    const existingOverrides = { ...(clientInfo.customScopeOverrides || {}) };
+    delete existingOverrides[id];
+    const updatePayload: Partial<ClientInfo> = {
+      customScopeOverrides: Object.keys(existingOverrides).length > 0 ? existingOverrides : undefined,
+    };
+    if (id === 'architectural') {
+      updatePayload.architecturalScopeCustomTitle = undefined;
+      updatePayload.architecturalScopeCustomDescription = undefined;
+    }
+    if (id === 'supervision') {
+      updatePayload.supervisionScopeCustomTitle = undefined;
+      updatePayload.supervisionScopeCustomDescription = undefined;
+      updatePayload.supervisionScopeCustomBullets = undefined;
+    }
+    onUpdateClientInfo(updatePayload);
+  };
+
+  const handleResetAllScopeOverrides = () => {
+    onUpdateClientInfo({
+      customScopeOverrides: undefined,
+      architecturalScopeCustomTitle: undefined,
+      architecturalScopeCustomDescription: undefined,
+      supervisionScopeCustomTitle: undefined,
+      supervisionScopeCustomDescription: undefined,
+      supervisionScopeCustomBullets: undefined,
+    });
+  };
+
+  const hasAnyCustomizedScope =
+    Boolean(clientInfo.customScopeOverrides && Object.keys(clientInfo.customScopeOverrides).length > 0) ||
+    Boolean(clientInfo.architecturalScopeCustomTitle) ||
+    Boolean(clientInfo.architecturalScopeCustomDescription) ||
+    Boolean(clientInfo.supervisionScopeCustomTitle) ||
+    Boolean(clientInfo.supervisionScopeCustomDescription) ||
+    Boolean(clientInfo.supervisionScopeCustomBullets && clientInfo.supervisionScopeCustomBullets.length > 0);
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-stone-950/60 backdrop-blur-xs transition-opacity no-print">
@@ -1283,24 +1334,37 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
           {/* TAB 3: CONDITIONAL SCOPE (MASTER TEMPLATE SECTION 3) */}
           {activeTab === 'scope' && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between bg-amber-50 border border-amber-200 p-3 rounded-xl">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-amber-50 border border-amber-200 p-3 rounded-xl">
                 <div>
                   <span className="font-black text-amber-900 text-xs block">
                     ثالثًا: نطاق أعمال الاستشاري — وحدات شرطية (&#123;&#123;IF:...&#125;&#125;)
                   </span>
                   <p className="text-[11px] text-stone-600">
-                    البنود المفعلة أدناه هي التي ستظهر فقط في النموذج الموحد المطبوع.
+                    البنود المفعلة أدناه هي التي ستظهر في العرض، ويمكنك الضغط على «تعديل يدوي» بجانب أي بند لتعديل مسماه أو نصه بالزيادة أو النقصان أو الإضافة.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleAutoDetect}
-                  className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold px-3 py-1.5 rounded-lg text-xs shadow-xs transition"
-                  title="مزامنة ذكية وتحديد تلقائي بناءً على بنود التسعير"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>تحديد ذكي تلقائي</span>
-                </button>
+                <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+                  {hasAnyCustomizedScope && (
+                    <button
+                      type="button"
+                      onClick={handleResetAllScopeOverrides}
+                      className="flex items-center gap-1 bg-white hover:bg-stone-100 text-stone-700 border border-stone-300 font-bold px-2.5 py-1.5 rounded-lg text-[11px] shadow-2xs transition cursor-pointer"
+                      title="استعادة النصوص الافتراضية لجميع البنود المعدلة"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      <span>استعادة كل النصوص</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleAutoDetect}
+                    className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold px-3 py-1.5 rounded-lg text-xs shadow-xs transition cursor-pointer"
+                    title="مزامنة ذكية وتحديد تلقائي بناءً على بنود التسعير"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>تحديد ذكي تلقائي</span>
+                  </button>
+                </div>
               </div>
 
               {/* قسم الديكور والتصميم الداخلي — يظهر حصراً وفقط عند وجود بنود ديكور في العرض */}
@@ -1313,11 +1377,11 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
                           مخرجات التصميم الداخلي الشرطية (قسم الديكور — 6 وحدات IF)
                         </span>
                         <span className="text-[10px] font-bold bg-amber-500 text-stone-950 px-2 py-0.5 rounded-full">
-                          خيارات حذف وتعديل متاحة ✓
+                          حذف وتعديل يدوي متاح لكل بند ✓
                         </span>
                       </div>
                       <p className="text-[11px] text-stone-600 mt-0.5">
-                        خاصة بقسم الديكور: يمكنك حذف أو استبعاد أو إعادة تفعيل أي بند من مخرجات الديكور حسب رغبتك:
+                        خاصة بقسم الديكور: يمكنك حذف أو استبعاد أو تعديل مسمى ونص أي بند من مخرجات الديكور حسب رغبتك:
                       </p>
                     </div>
 
@@ -1345,85 +1409,132 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
                         clientInfo.scopeFlags?.[def.id] !== undefined
                           ? !!clientInfo.scopeFlags[def.id]
                           : true;
+                      const resolved = resolveScopeItemContent(clientInfo, def);
+                      const isEditorOpen = !!expandedScopeEditors[def.id];
 
                       return (
                         <div
                           key={def.id}
-                          className={`p-3 rounded-xl border transition flex items-start justify-between gap-3 ${
+                          className={`p-3 rounded-xl border transition ${
                             isChecked
                               ? 'bg-white border-amber-400 shadow-2xs ring-1 ring-amber-400/30'
                               : 'bg-stone-50/90 border-dashed border-stone-300 opacity-60 hover:opacity-100'
                           }`}
                         >
-                          <div
-                            onClick={() => handleToggleScope(def.id)}
-                            className="flex items-start gap-3 cursor-pointer flex-1"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              onChange={() => handleToggleScope(def.id)}
-                              className="w-4 h-4 accent-amber-600 rounded mt-0.5 cursor-pointer shrink-0"
-                            />
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="w-5 h-5 rounded-full bg-stone-100 text-stone-800 text-[10px] font-black flex items-center justify-center shrink-0">
-                                  {idx + 1}
-                                </span>
-                                <span
-                                  className={`font-black text-xs ${
-                                    isChecked ? 'text-stone-900' : 'text-stone-500 line-through'
+                          <div className="flex items-start justify-between gap-3">
+                            <div
+                              onClick={() => handleToggleScope(def.id)}
+                              className="flex items-start gap-3 cursor-pointer flex-1"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => handleToggleScope(def.id)}
+                                className="w-4 h-4 accent-amber-600 rounded mt-0.5 cursor-pointer shrink-0"
+                              />
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="w-5 h-5 rounded-full bg-stone-100 text-stone-800 text-[10px] font-black flex items-center justify-center shrink-0">
+                                    {idx + 1}
+                                  </span>
+                                  <span
+                                    className={`font-black text-xs ${
+                                      isChecked ? 'text-stone-900' : 'text-stone-500 line-through'
+                                    }`}
+                                  >
+                                    {resolved.name}
+                                  </span>
+                                  <span className="text-[10px] font-mono text-amber-800 bg-amber-100/80 px-1.5 py-0.2 rounded border border-amber-200 font-bold">
+                                    {def.tag}
+                                  </span>
+                                  <span
+                                    className={`text-[9.5px] font-bold px-2 py-0.5 rounded-full ${
+                                      isChecked
+                                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                        : 'bg-rose-100 text-rose-800 border border-rose-200'
+                                    }`}
+                                  >
+                                    {isChecked ? 'مشمول بالعرض ✓' : 'محذوف من النطاق ✕'}
+                                  </span>
+                                  {resolved.isCustomized && (
+                                    <span className="text-[9.5px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full">
+                                      معدّل يدوياً ✓
+                                    </span>
+                                  )}
+                                </div>
+                                <p
+                                  className={`text-[11px] mt-1 leading-relaxed whitespace-pre-line ${
+                                    isChecked ? 'text-stone-600' : 'text-stone-400'
                                   }`}
                                 >
-                                  {def.name}
-                                </span>
-                                <span className="text-[10px] font-mono text-amber-800 bg-amber-100/80 px-1.5 py-0.2 rounded border border-amber-200 font-bold">
-                                  {def.tag}
-                                </span>
-                                <span
-                                  className={`text-[9.5px] font-bold px-2 py-0.5 rounded-full ${
-                                    isChecked
-                                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                                      : 'bg-rose-100 text-rose-800 border border-rose-200'
-                                  }`}
-                                >
-                                  {isChecked ? 'مشمول بالعرض ✓' : 'محذوف من النطاق ✕'}
-                                </span>
+                                  {resolved.description}
+                                </p>
                               </div>
-                              <p
-                                className={`text-[11px] mt-1 leading-relaxed ${
-                                  isChecked ? 'text-stone-600' : 'text-stone-400'
-                                }`}
-                              >
-                                {def.description}
-                              </p>
+                            </div>
+
+                            {/* أزرار التعديل اليدوي والحذف/الاستعادة */}
+                            <div className="shrink-0 flex items-center gap-1.5 pt-0.5">
+                              {isChecked ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleScopeEditor(def.id);
+                                    }}
+                                    className={`flex items-center gap-1 text-[10.5px] font-bold px-2.5 py-1 rounded-lg border transition cursor-pointer ${
+                                      isEditorOpen
+                                        ? 'bg-stone-900 text-white border-stone-900 hover:bg-stone-800'
+                                        : 'bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200'
+                                    }`}
+                                  >
+                                    <Edit3 className="w-3 h-3" />
+                                    <span>{isEditorOpen ? 'إخفاء' : 'تعديل يدوي'}</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => handleDeleteDecorScope(def.id, e)}
+                                    title="حذف هذا البند من النطاق الشرطي"
+                                    className="flex items-center gap-1 text-[11px] font-bold text-red-600 hover:text-white bg-red-50 hover:bg-red-600 border border-red-200 hover:border-red-600 px-2.5 py-1 rounded-lg transition cursor-pointer shadow-2xs"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    <span>حذف</span>
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleRestoreDecorScope(def.id, e)}
+                                  title="إعادة تفعيل وإدراج هذا البند في النطاق الشرطي"
+                                  className="flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:text-white bg-emerald-50 hover:bg-emerald-600 border border-emerald-200 hover:border-emerald-600 px-2.5 py-1 rounded-lg transition cursor-pointer shadow-2xs"
+                                >
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                  <span>استعادة</span>
+                                </button>
+                              )}
                             </div>
                           </div>
 
-                          {/* زر الحذف أو الاستعادة المباشر */}
-                          <div className="shrink-0 flex items-center pt-0.5">
-                            {isChecked ? (
-                              <button
-                                type="button"
-                                onClick={(e) => handleDeleteDecorScope(def.id, e)}
-                                title="حذف هذا البند من النطاق الشرطي"
-                                className="flex items-center gap-1 text-[11px] font-bold text-red-600 hover:text-white bg-red-50 hover:bg-red-600 border border-red-200 hover:border-red-600 px-2.5 py-1 rounded-lg transition cursor-pointer shadow-2xs"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                                <span>حذف</span>
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={(e) => handleRestoreDecorScope(def.id, e)}
-                                title="إعادة تفعيل وإدراج هذا البند في النطاق الشرطي"
-                                className="flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:text-white bg-emerald-50 hover:bg-emerald-600 border border-emerald-200 hover:border-emerald-600 px-2.5 py-1 rounded-lg transition cursor-pointer shadow-2xs"
-                              >
-                                <CheckCircle2 className="w-3.5 h-3.5" />
-                                <span>استعادة</span>
-                              </button>
-                            )}
-                          </div>
+                          {isChecked && isEditorOpen && (
+                            <ScopeItemManualEditor
+                              scopeId={def.id}
+                              defaultName={def.name}
+                              defaultDescription={def.description}
+                              currentTitle={resolved.rawTitle}
+                              currentDescription={resolved.rawDescription}
+                              isCustomized={resolved.isCustomized}
+                              onChangeTitle={(nextTitle) =>
+                                handleUpdateScopeOverride(def.id, { title: nextTitle })
+                              }
+                              onChangeDescription={(nextDescription) =>
+                                handleUpdateScopeOverride(def.id, { description: nextDescription })
+                              }
+                              onApplyPreset={(title, description) =>
+                                handleUpdateScopeOverride(def.id, { title, description })
+                              }
+                              onReset={() => handleResetScopeOverride(def.id)}
+                            />
+                          )}
                         </div>
                       );
                     })}
@@ -1439,6 +1550,9 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
                     def.id === 'modifyComponents' && def.name === 'رخصة تعديل مكونات بناء'
                       ? !!clientInfo.scopeFlags?.modifyComponents || !!clientInfo.scopeFlags?.buildingLicense
                       : !!clientInfo.scopeFlags?.[def.id];
+                  const resolved = resolveScopeItemContent(clientInfo, def);
+                  const isEditorOpen = !!expandedScopeEditors[def.id];
+
                   return (
                     <div
                       key={def.id}
@@ -1462,66 +1576,66 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
                           <div className="flex-1">
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="font-black text-xs text-stone-900">
-                                {def.id === 'architectural' && clientInfo.architecturalScopeCustomTitle?.trim()
-                                  ? clientInfo.architecturalScopeCustomTitle
-                                  : def.id === 'supervision' && clientInfo.supervisionScopeCustomTitle
-                                  ? clientInfo.supervisionScopeCustomTitle
-                                  : def.name}
+                                {resolved.name}
                               </span>
                               <span className="text-[10px] font-mono text-stone-500 bg-white px-1.5 py-0.2 rounded border border-stone-300">
                                 {def.tag}
                               </span>
-                              {def.id === 'architectural' && (
-                                <>
-                                  <span className="text-[9.5px] font-bold text-amber-800 bg-amber-200/80 px-2 py-0.5 rounded-full">
-                                    تعديل يدوي متاح ✍️
-                                  </span>
-                                  {isArchitecturalCustomized && (
-                                    <span className="text-[9.5px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full">
-                                      معدّل يدوياً ✓
-                                    </span>
-                                  )}
-                                </>
-                              )}
-                              {def.id === 'supervision' && (
-                                <span className="text-[9.5px] font-bold text-amber-800 bg-amber-200/80 px-2 py-0.5 rounded-full">
-                                  تعديل يدوي متاح ✍️
+                              {resolved.isCustomized && (
+                                <span className="text-[9.5px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full">
+                                  معدّل يدوياً ✓
                                 </span>
                               )}
                             </div>
                             <p className="text-[11px] text-stone-600 mt-1 leading-relaxed whitespace-pre-line">
-                              {def.id === 'architectural' &&
-                              clientInfo.architecturalScopeCustomDescription !== undefined &&
-                              clientInfo.architecturalScopeCustomDescription.trim() !== ''
-                                ? clientInfo.architecturalScopeCustomDescription
-                                : def.id === 'supervision' && clientInfo.supervisionScopeCustomDescription
-                                ? clientInfo.supervisionScopeCustomDescription
-                                : def.description}
+                              {resolved.description}
                             </p>
                           </div>
                         </div>
 
-                        {def.id === 'architectural' && isChecked && (
+                        {isChecked && (
                           <button
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setShowArchitecturalScopeEditor((prev) => !prev);
+                              toggleScopeEditor(def.id);
                             }}
                             className={`shrink-0 flex items-center gap-1 text-[10.5px] font-bold px-2.5 py-1 rounded-lg border transition cursor-pointer ${
-                              showArchitecturalScopeEditor
+                              isEditorOpen
                                 ? 'bg-stone-900 text-white border-stone-900 hover:bg-stone-800'
                                 : 'bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200'
                             }`}
                           >
                             <Edit3 className="w-3 h-3" />
-                            <span>{showArchitecturalScopeEditor ? 'إخفاء المحرر' : 'تعديل يدوي'}</span>
+                            <span>{isEditorOpen ? 'إخفاء المحرر' : 'تعديل يدوي'}</span>
                           </button>
                         )}
                       </div>
 
-                      {/* Architectural Dedicated Manual Scope Editor */}
-                      {def.id === 'architectural' && isChecked && showArchitecturalScopeEditor && (
+                      {/* Universal Manual Scope Editor (for every non-supervision engineering scope item) */}
+                      {def.id !== 'supervision' && isChecked && isEditorOpen && (
+                        <ScopeItemManualEditor
+                          scopeId={def.id}
+                          defaultName={def.name}
+                          defaultDescription={def.description}
+                          currentTitle={resolved.rawTitle}
+                          currentDescription={resolved.rawDescription}
+                          isCustomized={resolved.isCustomized}
+                          onChangeTitle={(nextTitle) =>
+                            handleUpdateScopeOverride(def.id, { title: nextTitle })
+                          }
+                          onChangeDescription={(nextDescription) =>
+                            handleUpdateScopeOverride(def.id, { description: nextDescription })
+                          }
+                          onApplyPreset={(title, description) =>
+                            handleUpdateScopeOverride(def.id, { title, description })
+                          }
+                          onReset={() => handleResetScopeOverride(def.id)}
+                        />
+                      )}
+
+                      {/* Supervision Dedicated Scope Editor (Title + Direct Free Text + Presets + Bullets) */}
+                      {def.id === 'supervision' && isChecked && isEditorOpen && (
                         <div
                           onClick={(e) => e.stopPropagation()}
                           className="mt-3 pt-3 border-t border-amber-300 space-y-3 bg-white p-3.5 rounded-xl border border-amber-300 shadow-xs"
@@ -1530,24 +1644,18 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
                             <div className="flex items-center gap-1.5">
                               <Edit3 className="w-3.5 h-3.5 text-amber-600" />
                               <span className="text-xs font-black text-amber-950">
-                                تعديل بند التصاميم المعمارية يدوياً
+                                تخصيص بنود ومسمى الإشراف الهندسي يدوياً
                               </span>
                             </div>
                             <div className="flex items-center gap-1.5">
                               <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-md">
                                 صلاحية تعديل كاملة ✓
                               </span>
-                              {isArchitecturalCustomized && (
+                              {resolved.isCustomized && (
                                 <button
                                   type="button"
-                                  onClick={() =>
-                                    onUpdateClientInfo({
-                                      architecturalScopeCustomTitle: undefined,
-                                      architecturalScopeCustomDescription: undefined,
-                                    })
-                                  }
+                                  onClick={() => handleResetScopeOverride('supervision')}
                                   className="flex items-center gap-1 text-[10px] font-bold bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-300 px-2 py-0.5 rounded-md transition cursor-pointer"
-                                  title="استعادة النص والمسمى الافتراضي"
                                 >
                                   <RotateCcw className="w-3 h-3" />
                                   <span>استعادة الافتراضي</span>
@@ -1555,187 +1663,8 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
                               )}
                             </div>
                           </div>
-
                           <p className="text-[11px] text-stone-600">
-                            يمكنك التعديل المباشر على النص بالزيادة أو النقصان أو إضافة بنود جديدة، وستظهر تعديلاتك فوراً في عرض السعر المطبوع والتصدير والعقد الذكي.
-                          </p>
-
-                          {/* Custom Architectural Title */}
-                          <div>
-                            <label className="block text-[11px] font-bold text-stone-700 mb-1">
-                              مسمى البند في العرض:
-                            </label>
-                            <input
-                              type="text"
-                              value={clientInfo.architecturalScopeCustomTitle ?? def.name}
-                              onChange={(e) =>
-                                onUpdateClientInfo({ architecturalScopeCustomTitle: e.target.value })
-                              }
-                              placeholder="التصاميم المعمارية"
-                              className="w-full bg-white border border-stone-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-stone-900 focus:ring-2 focus:ring-amber-500 outline-hidden"
-                            />
-                          </div>
-
-                          {/* Free-form Editable Description Textarea */}
-                          <div>
-                            <div className="flex items-center justify-between mb-1">
-                              <label className="block text-[11px] font-bold text-stone-700">
-                                نص وصف البند (زيادة / حذف / تعديل حر):
-                              </label>
-                              <span className="text-[10px] text-stone-400 font-medium">
-                                {currentArchitecturalDescription.length} حرف
-                              </span>
-                            </div>
-                            <textarea
-                              rows={4}
-                              value={currentArchitecturalDescription}
-                              onChange={(e) =>
-                                onUpdateClientInfo({
-                                  architecturalScopeCustomDescription: e.target.value,
-                                })
-                              }
-                              placeholder={def.description}
-                              className="w-full bg-stone-50 focus:bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs text-stone-900 leading-relaxed focus:ring-2 focus:ring-amber-500 outline-hidden resize-y transition"
-                            />
-                          </div>
-
-                          {/* Quick Add Custom Phrase */}
-                          <div>
-                            <label className="block text-[10.5px] font-bold text-stone-600 mb-1">
-                              إضافة سريعة إلى نهاية النص:
-                            </label>
-                            <div className="flex items-center gap-1.5">
-                              <input
-                                type="text"
-                                value={architecturalAdditionInput}
-                                onChange={(e) => setArchitecturalAdditionInput(e.target.value)}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    handleAddArchitecturalCustomText();
-                                  }
-                                }}
-                                placeholder="اكتب إضافة جديدة (مثال: تصميم الملحق الخارجي والمسبح)..."
-                                className="flex-1 bg-white border border-stone-300 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-amber-500 outline-hidden"
-                              />
-                              <button
-                                type="button"
-                                onClick={handleAddArchitecturalCustomText}
-                                className="bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold px-2.5 py-1.5 rounded-lg text-xs flex items-center gap-1 shadow-2xs cursor-pointer shrink-0"
-                              >
-                                <Plus className="w-3.5 h-3.5" />
-                                <span>إضافة</span>
-                              </button>
-                            </div>
-                          </div>
-
-                          {/* Quick-Add Chips */}
-                          <div>
-                            <label className="block text-[10.5px] font-bold text-stone-600 mb-1.5">
-                              عبارات جاهزة للإضافة بضغطة واحدة:
-                            </label>
-                            <div className="flex flex-wrap gap-1.5">
-                              {[
-                                'تصميم الحدائق واللاندسكيب',
-                                'تصميم الأسوار الخارجية والبوابات',
-                                'المناظير الخارجية ثلاثية الأبعاد (3D)',
-                                'جداول الأبواب والشبابيك والتشطيبات',
-                                'تفاصيل الملاحق الخارجية والمسبح',
-                                'دراسة توزيع الفرش والأثاث المعماري',
-                              ].map((chip) => (
-                                <button
-                                  key={chip}
-                                  type="button"
-                                  onClick={() => handleAppendArchitecturalPhrase(chip)}
-                                  className="text-[10.5px] font-bold bg-stone-50 hover:bg-amber-50 text-stone-700 hover:text-amber-950 border border-stone-300 hover:border-amber-400 px-2 py-1 rounded-md transition cursor-pointer"
-                                >
-                                  + {chip}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-
-                          {/* Quick Presets */}
-                          <div className="pt-2 border-t border-stone-200">
-                            <label className="block text-[10.5px] font-bold text-stone-600 mb-1.5">
-                              نماذج جاهزة سريعة للنص:
-                            </label>
-                            <div className="flex flex-wrap gap-1.5">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  onUpdateClientInfo({
-                                    architecturalScopeCustomTitle: 'التصاميم المعمارية',
-                                    architecturalScopeCustomDescription:
-                                      'إعداد المخططات الابتدائية، الموقع العام، المساقط الأفقية مع الفرش، ثم المخططات النهائية والتنفيذية والواجهات والقطاعات حسب نطاق المشروع.',
-                                  })
-                                }
-                                className="text-[10.5px] font-bold bg-amber-50 hover:bg-amber-100 text-stone-800 border border-amber-300 px-2 py-1 rounded-md transition cursor-pointer"
-                              >
-                                بدون 3D والأسوار
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  onUpdateClientInfo({
-                                    architecturalScopeCustomTitle: 'التصاميم المعمارية والواجهات',
-                                    architecturalScopeCustomDescription:
-                                      'إعداد المخططات الابتدائية والنهائية، المساقط الأفقية، تصميم الواجهات الخارجية، واللقطات والمناظير ثلاثية الأبعاد (3D) مع الأسوار الخارجية واللاندسكيب.',
-                                  })
-                                }
-                                className="text-[10.5px] font-bold bg-amber-50 hover:bg-amber-100 text-stone-800 border border-amber-300 px-2 py-1 rounded-md transition cursor-pointer"
-                              >
-                                شامل 3D واللاندسكيب
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  onUpdateClientInfo({
-                                    architecturalScopeCustomTitle: 'تطوير وتصميم الواجهات المعمارية',
-                                    architecturalScopeCustomDescription:
-                                      'إعداد تصميم الواجهات الخارجية والمناظير ثلاثية الأبعاد (3D) مع المخططات التنفيذية للواجهات والأسوار الخارجية.',
-                                  })
-                                }
-                                className="text-[10.5px] font-bold bg-amber-50 hover:bg-amber-100 text-stone-800 border border-amber-300 px-2 py-1 rounded-md transition cursor-pointer"
-                              >
-                                واجهات خارجية فقط
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  onUpdateClientInfo({
-                                    architecturalScopeCustomTitle: undefined,
-                                    architecturalScopeCustomDescription: undefined,
-                                  })
-                                }
-                                className="text-[10.5px] font-bold bg-stone-100 hover:bg-stone-200 text-stone-600 border border-stone-300 px-2 py-1 rounded-md transition cursor-pointer"
-                              >
-                                استعادة النص الافتراضي
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Supervision Dedicated Scope Editor */}
-                      {def.id === 'supervision' && isChecked && (
-                        <div
-                          onClick={(e) => e.stopPropagation()}
-                          className="mt-3 pt-3 border-t border-amber-300 space-y-3 bg-white p-3.5 rounded-xl border border-amber-300 shadow-xs"
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-1.5">
-                              <Edit3 className="w-3.5 h-3.5 text-amber-600" />
-                              <span className="text-xs font-black text-amber-950">
-                                تخصيص بنود ومسمى الإشراف الهندسي يدوياً
-                              </span>
-                            </div>
-                            <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-md">
-                              صلاحية تعديل كاملة ✓
-                            </span>
-                          </div>
-                          <p className="text-[11px] text-stone-600">
-                            يمكنك تعديل مسمى البند، أو تغيير نص المهام، أو إضافة وحذف بنود فرعية حسب رغبتك، وستظهر التعديلات مباشرة في عرض السعر المطبوع ووثائق العقد.
+                            يمكنك تعديل مسمى البند، أو تحرير النص مباشرة بالزيادة أو الحذف، أو إدارة البنود الفرعية حسب رغبتك، وستظهر التعديلات مباشرة في عرض السعر المطبوع والتصدير والعقد الذكي.
                           </p>
 
                           {/* Custom Title Input */}
@@ -1745,10 +1674,32 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
                             </label>
                             <input
                               type="text"
-                              value={clientInfo.supervisionScopeCustomTitle ?? def.name}
-                              onChange={(e) => onUpdateClientInfo({ supervisionScopeCustomTitle: e.target.value })}
+                              value={resolved.rawTitle}
+                              onChange={(e) =>
+                                handleUpdateScopeOverride('supervision', { title: e.target.value })
+                              }
                               placeholder="الإشراف الهندسي"
                               className="w-full bg-white border border-stone-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-stone-900 focus:ring-2 focus:ring-amber-500 outline-hidden"
+                            />
+                          </div>
+
+                          {/* Direct Free-Form Description Textarea */}
+                          <div>
+                            <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                              نص وصف الإشراف المباشر (تعديل حر — اختياري):
+                            </label>
+                            <textarea
+                              rows={3}
+                              value={
+                                clientInfo.customScopeOverrides?.supervision?.description ??
+                                clientInfo.supervisionScopeCustomDescription ??
+                                resolved.description
+                              }
+                              onChange={(e) =>
+                                handleUpdateScopeOverride('supervision', { description: e.target.value })
+                              }
+                              placeholder={def.description}
+                              className="w-full bg-stone-50 focus:bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs text-stone-900 leading-relaxed focus:ring-2 focus:ring-amber-500 outline-hidden resize-y transition"
                             />
                           </div>
 
@@ -1761,9 +1712,13 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
                               <button
                                 type="button"
                                 onClick={() => {
+                                  const existingOverrides = { ...(clientInfo.customScopeOverrides || {}) };
+                                  delete existingOverrides.supervision;
                                   onUpdateClientInfo({
+                                    customScopeOverrides:
+                                      Object.keys(existingOverrides).length > 0 ? existingOverrides : undefined,
                                     supervisionScopeCustomTitle: 'الإشراف الهندسي المعتمد (منصة بلدي)',
-                                    supervisionScopeCustomDescription: 'متابعة وإشراف هندسي مرحلي وفق متطلبات منصة بلدي والكود السعودي لإصدار شهادة الإشغال.',
+                                    supervisionScopeCustomDescription: undefined,
                                     supervisionScopeCustomBullets: [
                                       'متابعة مراحل البناء الإلزامية وتأكيد الاستلامات ورفع التقارير المعتمدة عبر منصة بلدي.',
                                       'استلام أعمال الحفر والإحلال وصب خرسانة النظافة والقواعد والميد الإنشائية.',
@@ -1774,14 +1729,18 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
                                 }}
                                 className="text-[10.5px] font-bold bg-amber-50 hover:bg-amber-100 text-stone-800 border border-amber-300 px-2 py-1 rounded-md transition cursor-pointer"
                               >
-                                📋 نموذج بلدي المعتمد
+                                نموذج بلدي المعتمد
                               </button>
                               <button
                                 type="button"
                                 onClick={() => {
+                                  const existingOverrides = { ...(clientInfo.customScopeOverrides || {}) };
+                                  delete existingOverrides.supervision;
                                   onUpdateClientInfo({
+                                    customScopeOverrides:
+                                      Object.keys(existingOverrides).length > 0 ? existingOverrides : undefined,
                                     supervisionScopeCustomTitle: 'الإشراف الهندسي الشامل والمتابعة الميدانية',
-                                    supervisionScopeCustomDescription: 'إشراف فني مستمر وزيارات ميدانية دورية لضمان جودة المواد ومطابقة التنفيذ للمخططات الإنشائية والمعمارية.',
+                                    supervisionScopeCustomDescription: undefined,
                                     supervisionScopeCustomBullets: [
                                       'زيارات هندسية دورية منتظمة للموقع بواقع زيارات أسبوعية ومتابعة دقيقة للأعمال.',
                                       'استلام كافة عناصر الهيكل الإنشائي (عظم) واعتماد جودة المواد الموردة.',
@@ -1792,14 +1751,18 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
                                 }}
                                 className="text-[10.5px] font-bold bg-amber-50 hover:bg-amber-100 text-stone-800 border border-amber-300 px-2 py-1 rounded-md transition cursor-pointer"
                               >
-                                🏗️ إشراف ميداني شامل
+                                إشراف ميداني شامل
                               </button>
                               <button
                                 type="button"
                                 onClick={() => {
+                                  const existingOverrides = { ...(clientInfo.customScopeOverrides || {}) };
+                                  delete existingOverrides.supervision;
                                   onUpdateClientInfo({
+                                    customScopeOverrides:
+                                      Object.keys(existingOverrides).length > 0 ? existingOverrides : undefined,
                                     supervisionScopeCustomTitle: 'إدارة ومراقبة جودة المشاريع الهندسية',
-                                    supervisionScopeCustomDescription: 'إدارة فنية متقدمة وضبط الجودة والسلامة ومطابقة المواصفات والمقاييس المعتمدة.',
+                                    supervisionScopeCustomDescription: undefined,
                                     supervisionScopeCustomBullets: [
                                       'إدارة فنية متكاملة للمشروع وضبط الجدول الزمني واعتماد العينات والمواد.',
                                       'فحص استلامات العزل المائي والحراري واختبارات الضغط للشبكات.',
@@ -1810,20 +1773,14 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
                                 }}
                                 className="text-[10.5px] font-bold bg-amber-50 hover:bg-amber-100 text-stone-800 border border-amber-300 px-2 py-1 rounded-md transition cursor-pointer"
                               >
-                                🎯 إدارة وضبط جودة
+                                إدارة وضبط جودة
                               </button>
                               <button
                                 type="button"
-                                onClick={() => {
-                                  onUpdateClientInfo({
-                                    supervisionScopeCustomTitle: undefined,
-                                    supervisionScopeCustomDescription: undefined,
-                                    supervisionScopeCustomBullets: undefined,
-                                  });
-                                }}
+                                onClick={() => handleResetScopeOverride('supervision')}
                                 className="text-[10.5px] font-bold bg-stone-100 hover:bg-stone-200 text-stone-600 border border-stone-300 px-2 py-1 rounded-md transition cursor-pointer"
                               >
-                                🔄 استعادة الافتراضي
+                                استعادة الافتراضي
                               </button>
                             </div>
                           </div>
@@ -1843,7 +1800,7 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
                                     onChange={(e) => {
                                       const next = [...currentSupervisionBullets];
                                       next[bIdx] = e.target.value;
-                                      onUpdateClientInfo({ supervisionScopeCustomBullets: next });
+                                      handleUpdateSupervisionBullets(next);
                                     }}
                                     className="flex-1 bg-transparent text-[11px] text-stone-800 outline-hidden"
                                   />
@@ -1851,7 +1808,7 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
                                     type="button"
                                     onClick={() => {
                                       const next = currentSupervisionBullets.filter((_, idx) => idx !== bIdx);
-                                      onUpdateClientInfo({ supervisionScopeCustomBullets: next });
+                                      handleUpdateSupervisionBullets(next);
                                     }}
                                     className="text-stone-400 hover:text-red-600 p-0.5 rounded transition cursor-pointer"
                                     title="حذف هذا البند"

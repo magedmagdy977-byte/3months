@@ -73,6 +73,11 @@ export interface MasterTemplateScopeFlags {
   decor_boq?: boolean; // {{IF:جداول_الكميات}}
 }
 
+export interface CustomScopeOverride {
+  title?: string;
+  description?: string;
+}
+
 // Master Template: Conditional exclusions (الأعمال غير المشمولة)
 export interface MasterTemplateExclusions {
   excludeSupervision: boolean; // {{IF:لا_يشمل_إشراف}}
@@ -157,7 +162,10 @@ export interface ClientInfo {
   // نطاق موقع الحي في الرياض (قسم التصميم وقسم الإشراف)
   locationZone?: RiyadhLocationZone;
 
-  // التعديل اليدوي لبند التصاميم المعمارية في النطاق الشرطي
+  // التعديل اليدوي الشامل لجميع بنود النطاق الشرطي (الهندسية والديكور)
+  customScopeOverrides?: Partial<Record<keyof MasterTemplateScopeFlags, CustomScopeOverride>>;
+
+  // التعديل اليدوي لبند التصاميم المعمارية في النطاق الشرطي (توافق رجعي)
   architecturalScopeCustomTitle?: string;
   architecturalScopeCustomDescription?: string;
 

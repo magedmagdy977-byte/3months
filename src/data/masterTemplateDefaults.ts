@@ -1,6 +1,7 @@
 import {
   MasterTemplateScopeFlags,
   MasterTemplateExclusions,
+  CustomScopeOverride,
   BankAccountDetails,
   PaymentMilestone,
   QuotationItem,
@@ -243,6 +244,273 @@ export const DECOR_SCOPE_DEFINITIONS: Array<{
     description: 'إعداد قوائم وجداول حصر الكميات والمواد اللازمة لتنفيذ أعمال التصميم الداخلي والديكور.',
   },
 ];
+
+// Quick-add suggestion chips tailored to every conditional scope item
+export const SCOPE_QUICK_CHIPS: Partial<Record<keyof MasterTemplateScopeFlags, string[]>> = {
+  survey: [
+    'تحديد الزوايا والبتر المساحية على الطبيعة',
+    'رفع مناسيب الشوارع والمباني المجاورة',
+    'تحديث الصك الإلكتروني والرفع المساحي عبر بلدي',
+    'مخطط طبوغرافي ومناسيب الحفر والردم',
+  ],
+  architectural: [
+    'تصميم الحدائق واللاندسكيب',
+    'تصميم الأسوار الخارجية والبوابات',
+    'المناظير الخارجية ثلاثية الأبعاد (3D)',
+    'جداول الأبواب والشبابيك والتشطيبات',
+    'تفاصيل الملاحق الخارجية والمسبح',
+    'دراسة توزيع الفرش والأثاث المعماري',
+  ],
+  structural: [
+    'مخططات القبو والجدران الاستنادية',
+    'تصميم إنشائي للمسبح والخزانات الأرضية',
+    'تصميم الأسوار الخارجية إنشائياً',
+    'جداول حصر كميات الحديد والخرسانة',
+  ],
+  electrical: [
+    'نظام المنزل الذكي (Smart Home)',
+    'تأسيس شاحن السيارات الكهربائية (EV)',
+    'مخططات كاميرات المراقبة والإنتركوم والشبكات',
+    'توزيع إنارة الواجهات والحدائق الخارجية',
+  ],
+  hvac: [
+    'تصميم التكييف المخفي (Concealed)',
+    'تصميم التكييف المركزي (VRF / Chiller)',
+    'أنظمة التهوية وتجديد الهواء النقي (Fresh Air)',
+    'مخططات مراوح سحب الدخان والشفط',
+  ],
+  plumbing: [
+    'مخططات شبكات المسابح والنوافير',
+    'شبكة الري الأوتوماتيكي للحدائق',
+    'مخططات تصريف مياه السيول والأمطار للأسطح والأحواش',
+    'نظام تدوير المياه الساخنة والسخانات المركزية',
+  ],
+  civilDefense: [
+    'نظام الإطفاء الآلي بالرشاشات المائية',
+    'مخططات الإخلاء ومخارج الطوارئ واللوحات الإرشادية',
+    'نظام الإنذار المبكر وكواشف الدخان والحرارة',
+    'متابعة الاعتماد عبر بوابة سلامة',
+  ],
+  buildingLicense: [
+    'استكمال متطلبات كود الطاقة والعزل الحراري',
+    'اعتماد المخططات الهندسية عبر منصة بلدي',
+    'إعداد تعهدات المكتب الاستشاري المطلوبة للرخصة',
+    'متابعة طلب الرخصة حتى صدورها النهائي',
+  ],
+  asBuiltCorrection: [
+    'إصدار شهادة السلامة الإنشائية للمبنى',
+    'تقرير فحص وتقييم العناصر الإنشائية القائمة',
+    'مخططات الوضع الراهن المعمارية والإنشائية',
+    'التقديم والمتابعة عبر منصة بلدي لإتمام التصحيح',
+  ],
+  modifyComponents: [
+    'إضافة ملحق علوي أو أرضي',
+    'تعديل التقسيمات الداخلية والواجهات',
+    'تحديث المخططات المعتمدة وإصدار رخصة التعديل',
+    'تعديل عدد الوحدات أو المكونات النظامية',
+  ],
+  supervision: [
+    'رفع تقارير المراحل الإلزامية عبر منصة بلدي',
+    'استلام أعمال الحديد والنجارة وتصاريح الصب',
+    'فحص العزل المائي والحراري واختبارات الضغط',
+    'إصدار تقرير شهادة الإشغال النهائية',
+  ],
+  decor_as_built: [
+    'توثيق فوتوغرافي كامل للفراغات القائمة',
+    'رفع مواقع التأسيسات الكهربائية والصحية والتكييف',
+    'مخططات الأبعاد الفعلية ومناسيب الأسقف',
+  ],
+  decor_moodboard: [
+    'لوحة الألوان والخامات الرئيسية لكل فراغ',
+    'أفكار الإضاءة الديكورية والأثاث المقترح',
+    'تحديد الهوية والطراز التصميمي العام',
+  ],
+  decor_3d_renders: [
+    'تعديلان مجانيان قبل الاعتماد النهائي',
+    'لقطات ليلية ونهارية توضح توزيع الإضاءة',
+    'تغطية كافة الفراغات الداخلية المتفق عليها',
+  ],
+  decor_shop_drawings: [
+    'مخططات الجبس والأسقف المستعارة والمناسيب',
+    'مخططات الأرضيات وتقطيع الرخام والبورسلان',
+    'تفاصيل الجدران والنجارة والديكورات الخشبية',
+    'مخططات توزيع الإنارة والمفاتيح والأفياش الديكورية',
+  ],
+  decor_specifications: [
+    'أكواد الدهانات والرخام والبورسلان المقترحة',
+    'توصيف الإضاءات والوحدات الصحية والإكسسوارات',
+    'مقترحات الموردين والبدائل المعتمدة بالسوق المحلي',
+  ],
+  decor_boq: [
+    'جدول حصر كميات الأعمال المدنية والجبسية',
+    'جدول حصر كميات الأرضيات والتكسيات والدهانات',
+    'قائمة كميات الإضاءة والأثاث الثابت والمتحرك',
+  ],
+};
+
+// Quick one-click presets for key scope items
+export const SCOPE_QUICK_PRESETS: Partial<
+  Record<keyof MasterTemplateScopeFlags, Array<{ label: string; title: string; description: string }>>
+> = {
+  architectural: [
+    {
+      label: 'بدون 3D والأسوار',
+      title: 'التصاميم المعمارية',
+      description:
+        'إعداد المخططات الابتدائية، الموقع العام، المساقط الأفقية مع الفرش، ثم المخططات النهائية والتنفيذية والواجهات والقطاعات حسب نطاق المشروع.',
+    },
+    {
+      label: 'شامل 3D واللاندسكيب',
+      title: 'التصاميم المعمارية والواجهات',
+      description:
+        'إعداد المخططات الابتدائية والنهائية، المساقط الأفقية، تصميم الواجهات الخارجية، واللقطات والمناظير ثلاثية الأبعاد (3D) مع الأسوار الخارجية واللاندسكيب.',
+    },
+    {
+      label: 'واجهات خارجية فقط',
+      title: 'تطوير وتصميم الواجهات المعمارية',
+      description:
+        'إعداد تصميم الواجهات الخارجية والمناظير ثلاثية الأبعاد (3D) مع المخططات التنفيذية للواجهات والأسوار الخارجية.',
+    },
+  ],
+  structural: [
+    {
+      label: 'مخططات إنشائية بدون قبو',
+      title: 'المخططات الإنشائية',
+      description:
+        'إعداد مخططات المحاور والأعمدة والقواعد والميد والأسقف والسلالم والخزانات والتفاصيل والجداول الإنشائية وفق كود البناء السعودي.',
+    },
+    {
+      label: 'شامل القبو والمسبح',
+      title: 'المخططات الإنشائية الشاملة',
+      description:
+        'إعداد كافة المخططات الإنشائية للمبنى شاملًا تصميم القبو والجدران الاستنادية والمسبح والخزانات والأسوار الخارجية والجداول والتفاصيل التنفيذية.',
+    },
+  ],
+  electrical: [
+    {
+      label: 'كهرباء أساسية للرخصة',
+      title: 'المخططات الكهربائية',
+      description:
+        'إعداد مخططات اللوحات الرئيسية والفرعية وتوزيع الإنارة والقوى والأحمال الكهربائية حسب متطلبات كود البناء السعودي.',
+    },
+    {
+      label: 'شامل Smart Home والكاميرات',
+      title: 'المخططات الكهربائية والأنظمة الذكية',
+      description:
+        'إعداد مخططات القوى والإنارة واللوحات والتيار الخفيف والتأريض وموانع الصواعق مع تأسيس نظام المنزل الذكي والكاميرات وشاحن السيارات الكهربائية.',
+    },
+  ],
+  hvac: [
+    {
+      label: 'تكييف مخفي وسبليت',
+      title: 'مخططات التكييف والتهوية',
+      description:
+        'حساب الأحمال الحرارية وإعداد مخططات وحدات التكييف المخفي (Concealed) والسبليت ومسارات الدكت ومراوح الشفط والتهوية.',
+    },
+  ],
+  civilDefense: [
+    {
+      label: 'تقرير ومخططات سلامة كاملة',
+      title: 'مخططات الأمن والسلامة (الدفاع المدني)',
+      description:
+        'إعداد مخططات أنظمة الإنذار المبكر والإطفاء ومخارج الطوارئ وفق كود البناء السعودي (SBC 801) ومتابعة الاعتماد عبر بوابة سلامة.',
+    },
+  ],
+};
+
+/**
+ * Retrieve any manual title/description override for a given conditional scope item,
+ * maintaining full backward compatibility with legacy architectural/supervision fields.
+ */
+export function getScopeItemOverride(
+  clientInfo: ClientInfo,
+  id: keyof MasterTemplateScopeFlags
+): CustomScopeOverride | undefined {
+  const mapOverride = clientInfo.customScopeOverrides?.[id];
+  if (mapOverride && (mapOverride.title !== undefined || mapOverride.description !== undefined)) {
+    return mapOverride;
+  }
+  if (id === 'architectural') {
+    if (
+      clientInfo.architecturalScopeCustomTitle !== undefined ||
+      clientInfo.architecturalScopeCustomDescription !== undefined
+    ) {
+      return {
+        title: clientInfo.architecturalScopeCustomTitle,
+        description: clientInfo.architecturalScopeCustomDescription,
+      };
+    }
+  }
+  if (id === 'supervision') {
+    if (
+      clientInfo.supervisionScopeCustomTitle !== undefined ||
+      clientInfo.supervisionScopeCustomDescription !== undefined
+    ) {
+      return {
+        title: clientInfo.supervisionScopeCustomTitle,
+        description: clientInfo.supervisionScopeCustomDescription,
+      };
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Resolve final display name, description, raw editor values, and customization flag for any scope item.
+ */
+export function resolveScopeItemContent(
+  clientInfo: ClientInfo,
+  def: { id: keyof MasterTemplateScopeFlags; name: string; description: string }
+): {
+  name: string;
+  description: string;
+  rawTitle: string;
+  rawDescription: string;
+  isCustomized: boolean;
+} {
+  const override = getScopeItemOverride(clientInfo, def.id);
+  const rawTitle = override?.title !== undefined ? override.title : def.name;
+  const name = override?.title?.trim() || def.name;
+
+  if (def.id === 'supervision') {
+    const hasCustomBullets =
+      Array.isArray(clientInfo.supervisionScopeCustomBullets) &&
+      clientInfo.supervisionScopeCustomBullets.some((b) => b.trim() !== '');
+    const joinedBullets = hasCustomBullets
+      ? clientInfo.supervisionScopeCustomBullets!.filter((b) => b.trim()).join(' • ')
+      : '';
+    const rawDescription =
+      override?.description !== undefined ? override.description : def.description;
+    const description =
+      override?.description !== undefined && override.description.trim() !== ''
+        ? override.description.trim()
+        : joinedBullets || def.description;
+    const isCustomized =
+      (override?.title !== undefined &&
+        override.title.trim() !== '' &&
+        override.title.trim() !== def.name.trim()) ||
+      (override?.description !== undefined &&
+        override.description.trim() !== def.description.trim()) ||
+      hasCustomBullets;
+    return { name, description, rawTitle, rawDescription, isCustomized };
+  }
+
+  const rawDescription =
+    override?.description !== undefined ? override.description : def.description;
+  const description =
+    override?.description !== undefined && override.description.trim() !== ''
+      ? override.description.trim()
+      : def.description;
+
+  const isCustomized =
+    (override?.title !== undefined &&
+      override.title.trim() !== '' &&
+      override.title.trim() !== def.name.trim()) ||
+    (override?.description !== undefined &&
+      override.description.trim() !== def.description.trim());
+
+  return { name, description, rawTitle, rawDescription, isCustomized };
+}
 
 // 6. Intelligent auto-detection of scope flags from quotation items
 export function autoDetectScopeFlags(items: QuotationItem[]): MasterTemplateScopeFlags {
@@ -517,37 +785,12 @@ export function getActiveScopeItemsForQuotation(
         return !!clientInfo.scopeFlags?.[def.id];
       })
       .map((def) => {
-        if (def.id === 'architectural') {
-          const customName = clientInfo.architecturalScopeCustomTitle?.trim() || def.name;
-          const customDesc =
-            clientInfo.architecturalScopeCustomDescription !== undefined &&
-            clientInfo.architecturalScopeCustomDescription.trim() !== ''
-              ? clientInfo.architecturalScopeCustomDescription.trim()
-              : def.description;
-          return {
-            ...def,
-            name: customName,
-            description: customDesc,
-          };
-        }
-        if (def.id === 'supervision') {
-          const customName = clientInfo.supervisionScopeCustomTitle?.trim() || def.name;
-          let customDesc = clientInfo.supervisionScopeCustomDescription?.trim();
-          if (
-            clientInfo.supervisionScopeCustomBullets &&
-            clientInfo.supervisionScopeCustomBullets.length > 0
-          ) {
-            customDesc = clientInfo.supervisionScopeCustomBullets
-              .filter((b) => b.trim())
-              .join(' • ');
-          }
-          return {
-            ...def,
-            name: customName,
-            description: customDesc || def.description,
-          };
-        }
-        return def;
+        const resolved = resolveScopeItemContent(clientInfo, def);
+        return {
+          ...def,
+          name: resolved.name,
+          description: resolved.description,
+        };
       });
     result.push(...activeStandard);
   }
@@ -569,6 +812,13 @@ export function getActiveScopeItemsForQuotation(
       }
       // 3. If undefined in scopeFlags: check if in item deliverables
       return combinedDecorText.includes(def.name);
+    }).map((def) => {
+      const resolved = resolveScopeItemContent(clientInfo, def);
+      return {
+        ...def,
+        name: resolved.name,
+        description: resolved.description,
+      };
     });
 
     result.push(...activeDecorDefs);

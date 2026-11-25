@@ -241,25 +241,40 @@ function buildDesignScopeGroups(
   }
 
   if (flags?.architectural !== false) {
-    groups.push({
-      id: 'scope-arch-prelim',
-      title: 'التصاميم المعمارية :',
-      subtitle: 'المخططات الابتدائية :',
-      items: ['الموقع العام لكامل المشروع.', 'المساقط الأفقية مع الفرش.'],
-      layout: 'list',
-    });
-    groups.push({
-      id: 'scope-arch-final',
-      title: '',
-      subtitle: 'المخططات النهائية :',
-      items: [
-        'الموقع العام والمساقط الأفقية التنفيذية.',
-        'الواجهات والقطاعات.',
-        'المناظير الخارجية 3D حسب حاجة المشروع.',
-        'الحدائق واللاند سكيب والأسوار الخارجية.',
-      ],
-      layout: 'list',
-    });
+    const archTitle = clientInfo.architecturalScopeCustomTitle?.trim() || 'التصاميم المعمارية';
+    const customArchDesc = clientInfo.architecturalScopeCustomDescription?.trim();
+    if (customArchDesc) {
+      const customLines = customArchDesc
+        .split(/\r?\n/)
+        .map((line) => line.replace(/^[-•*]\s*/, '').trim())
+        .filter(Boolean);
+      groups.push({
+        id: 'scope-arch-custom',
+        title: `${archTitle} :`,
+        items: customLines.length > 0 ? customLines : [customArchDesc],
+        layout: 'list',
+      });
+    } else {
+      groups.push({
+        id: 'scope-arch-prelim',
+        title: `${archTitle} :`,
+        subtitle: 'المخططات الابتدائية :',
+        items: ['الموقع العام لكامل المشروع.', 'المساقط الأفقية مع الفرش.'],
+        layout: 'list',
+      });
+      groups.push({
+        id: 'scope-arch-final',
+        title: '',
+        subtitle: 'المخططات النهائية :',
+        items: [
+          'الموقع العام والمساقط الأفقية التنفيذية.',
+          'الواجهات والقطاعات.',
+          'المناظير الخارجية 3D حسب حاجة المشروع.',
+          'الحدائق واللاند سكيب والأسوار الخارجية.',
+        ],
+        layout: 'list',
+      });
+    }
   }
 
   if (flags?.structural !== false) {

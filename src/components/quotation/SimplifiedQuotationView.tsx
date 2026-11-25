@@ -45,7 +45,9 @@ const getSimplifiedScopeTitle = (id: string, defaultName: string): string => {
     case 'survey':
       return 'الرفع المساحي';
     case 'architectural':
-      return 'التصاميم المعمارية';
+      return defaultName && defaultName.trim() !== 'التصاميم المعمارية'
+        ? defaultName.trim()
+        : 'التصاميم المعمارية';
     case 'structural':
       return 'المخططات الإنشائية';
     case 'electrical':

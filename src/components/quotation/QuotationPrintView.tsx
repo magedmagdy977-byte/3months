@@ -1056,7 +1056,7 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({
                               {scope.name}
                             </span>
                             <p
-                              className={`text-stone-600 ${
+                              className={`text-stone-600 whitespace-pre-line ${
                                 density === 'comfort'
                                   ? 'text-[11px] print:text-[9px] leading-snug print:leading-snug'
                                   : density === 'balanced'

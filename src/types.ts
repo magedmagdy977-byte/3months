@@ -157,6 +157,10 @@ export interface ClientInfo {
   // نطاق موقع الحي في الرياض (قسم التصميم وقسم الإشراف)
   locationZone?: RiyadhLocationZone;
 
+  // التعديل اليدوي لبند التصاميم المعمارية في النطاق الشرطي
+  architecturalScopeCustomTitle?: string;
+  architecturalScopeCustomDescription?: string;
+
   // التعديل اليدوي لبنود قسم الإشراف في النطاق الشرطي
   supervisionScopeCustomTitle?: string;
   supervisionScopeCustomDescription?: string;

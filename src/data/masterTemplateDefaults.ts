@@ -517,6 +517,19 @@ export function getActiveScopeItemsForQuotation(
         return !!clientInfo.scopeFlags?.[def.id];
       })
       .map((def) => {
+        if (def.id === 'architectural') {
+          const customName = clientInfo.architecturalScopeCustomTitle?.trim() || def.name;
+          const customDesc =
+            clientInfo.architecturalScopeCustomDescription !== undefined &&
+            clientInfo.architecturalScopeCustomDescription.trim() !== ''
+              ? clientInfo.architecturalScopeCustomDescription.trim()
+              : def.description;
+          return {
+            ...def,
+            name: customName,
+            description: customDesc,
+          };
+        }
         if (def.id === 'supervision') {
           const customName = clientInfo.supervisionScopeCustomTitle?.trim() || def.name;
           let customDesc = clientInfo.supervisionScopeCustomDescription?.trim();

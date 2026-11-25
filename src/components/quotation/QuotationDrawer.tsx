@@ -109,6 +109,10 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
   const [newDetailInput, setNewDetailInput] = useState<string>('');
   const [supervisionNewBullet, setSupervisionNewBullet] = useState<string>('');
 
+  // Architectural scope manual edit state
+  const [showArchitecturalScopeEditor, setShowArchitecturalScopeEditor] = useState<boolean>(true);
+  const [architecturalAdditionInput, setArchitecturalAdditionInput] = useState<string>('');
+
   // Supervision scope manual edit state
   const [showSupervisionScopeEditor, setShowSupervisionScopeEditor] = useState<boolean>(true);
 
@@ -487,6 +491,41 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
     const updated = [...currentSupervisionBullets, supervisionNewBullet.trim()];
     onUpdateClientInfo({ supervisionScopeCustomBullets: updated });
     setSupervisionNewBullet('');
+  };
+
+  const defaultArchitecturalDescription =
+    MASTER_SCOPE_DEFINITIONS.find((d) => d.id === 'architectural')?.description || '';
+
+  const currentArchitecturalDescription =
+    clientInfo.architecturalScopeCustomDescription !== undefined
+      ? clientInfo.architecturalScopeCustomDescription
+      : defaultArchitecturalDescription;
+
+  const isArchitecturalCustomized =
+    (clientInfo.architecturalScopeCustomTitle !== undefined &&
+      clientInfo.architecturalScopeCustomTitle.trim() !== '' &&
+      clientInfo.architecturalScopeCustomTitle.trim() !== 'التصاميم المعمارية') ||
+    (clientInfo.architecturalScopeCustomDescription !== undefined &&
+      clientInfo.architecturalScopeCustomDescription.trim() !== defaultArchitecturalDescription.trim());
+
+  const handleAppendArchitecturalPhrase = (phrase: string) => {
+    const cleanPhrase = phrase.trim();
+    if (!cleanPhrase) return;
+    const base = currentArchitecturalDescription.trim();
+    if (!base) {
+      onUpdateClientInfo({ architecturalScopeCustomDescription: `${cleanPhrase}.` });
+      return;
+    }
+    const withoutTrailingDot = base.replace(/[.،؛]+$/, '').trim();
+    onUpdateClientInfo({
+      architecturalScopeCustomDescription: `${withoutTrailingDot}، ${cleanPhrase}.`,
+    });
+  };
+
+  const handleAddArchitecturalCustomText = () => {
+    if (!architecturalAdditionInput.trim()) return;
+    handleAppendArchitecturalPhrase(architecturalAdditionInput);
+    setArchitecturalAdditionInput('');
   };
 
   return (
@@ -1413,37 +1452,270 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
                         onClick={() => handleToggleScope(def.id)}
                         className="flex items-start justify-between gap-3 cursor-pointer"
                       >
-                        <div className="flex items-start gap-3">
+                        <div className="flex items-start gap-3 flex-1">
                           <input
                             type="checkbox"
                             checked={isChecked}
                             onChange={() => handleToggleScope(def.id)}
-                            className="w-4 h-4 accent-amber-600 rounded mt-0.5"
+                            className="w-4 h-4 accent-amber-600 rounded mt-0.5 shrink-0"
                           />
-                          <div>
-                            <div className="flex items-center gap-2">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <span className="font-black text-xs text-stone-900">
-                                {def.id === 'supervision' && clientInfo.supervisionScopeCustomTitle
+                                {def.id === 'architectural' && clientInfo.architecturalScopeCustomTitle?.trim()
+                                  ? clientInfo.architecturalScopeCustomTitle
+                                  : def.id === 'supervision' && clientInfo.supervisionScopeCustomTitle
                                   ? clientInfo.supervisionScopeCustomTitle
                                   : def.name}
                               </span>
                               <span className="text-[10px] font-mono text-stone-500 bg-white px-1.5 py-0.2 rounded border border-stone-300">
                                 {def.tag}
                               </span>
+                              {def.id === 'architectural' && (
+                                <>
+                                  <span className="text-[9.5px] font-bold text-amber-800 bg-amber-200/80 px-2 py-0.5 rounded-full">
+                                    تعديل يدوي متاح ✍️
+                                  </span>
+                                  {isArchitecturalCustomized && (
+                                    <span className="text-[9.5px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full">
+                                      معدّل يدوياً ✓
+                                    </span>
+                                  )}
+                                </>
+                              )}
                               {def.id === 'supervision' && (
                                 <span className="text-[9.5px] font-bold text-amber-800 bg-amber-200/80 px-2 py-0.5 rounded-full">
                                   تعديل يدوي متاح ✍️
                                 </span>
                               )}
                             </div>
-                            <p className="text-[11px] text-stone-600 mt-1 leading-relaxed">
-                              {def.id === 'supervision' && clientInfo.supervisionScopeCustomDescription
+                            <p className="text-[11px] text-stone-600 mt-1 leading-relaxed whitespace-pre-line">
+                              {def.id === 'architectural' &&
+                              clientInfo.architecturalScopeCustomDescription !== undefined &&
+                              clientInfo.architecturalScopeCustomDescription.trim() !== ''
+                                ? clientInfo.architecturalScopeCustomDescription
+                                : def.id === 'supervision' && clientInfo.supervisionScopeCustomDescription
                                 ? clientInfo.supervisionScopeCustomDescription
                                 : def.description}
                             </p>
                           </div>
                         </div>
+
+                        {def.id === 'architectural' && isChecked && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowArchitecturalScopeEditor((prev) => !prev);
+                            }}
+                            className={`shrink-0 flex items-center gap-1 text-[10.5px] font-bold px-2.5 py-1 rounded-lg border transition cursor-pointer ${
+                              showArchitecturalScopeEditor
+                                ? 'bg-stone-900 text-white border-stone-900 hover:bg-stone-800'
+                                : 'bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200'
+                            }`}
+                          >
+                            <Edit3 className="w-3 h-3" />
+                            <span>{showArchitecturalScopeEditor ? 'إخفاء المحرر' : 'تعديل يدوي'}</span>
+                          </button>
+                        )}
                       </div>
+
+                      {/* Architectural Dedicated Manual Scope Editor */}
+                      {def.id === 'architectural' && isChecked && showArchitecturalScopeEditor && (
+                        <div
+                          onClick={(e) => e.stopPropagation()}
+                          className="mt-3 pt-3 border-t border-amber-300 space-y-3 bg-white p-3.5 rounded-xl border border-amber-300 shadow-xs"
+                        >
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <div className="flex items-center gap-1.5">
+                              <Edit3 className="w-3.5 h-3.5 text-amber-600" />
+                              <span className="text-xs font-black text-amber-950">
+                                تعديل بند التصاميم المعمارية يدوياً
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-md">
+                                صلاحية تعديل كاملة ✓
+                              </span>
+                              {isArchitecturalCustomized && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    onUpdateClientInfo({
+                                      architecturalScopeCustomTitle: undefined,
+                                      architecturalScopeCustomDescription: undefined,
+                                    })
+                                  }
+                                  className="flex items-center gap-1 text-[10px] font-bold bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-300 px-2 py-0.5 rounded-md transition cursor-pointer"
+                                  title="استعادة النص والمسمى الافتراضي"
+                                >
+                                  <RotateCcw className="w-3 h-3" />
+                                  <span>استعادة الافتراضي</span>
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          <p className="text-[11px] text-stone-600">
+                            يمكنك التعديل المباشر على النص بالزيادة أو النقصان أو إضافة بنود جديدة، وستظهر تعديلاتك فوراً في عرض السعر المطبوع والتصدير والعقد الذكي.
+                          </p>
+
+                          {/* Custom Architectural Title */}
+                          <div>
+                            <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                              مسمى البند في العرض:
+                            </label>
+                            <input
+                              type="text"
+                              value={clientInfo.architecturalScopeCustomTitle ?? def.name}
+                              onChange={(e) =>
+                                onUpdateClientInfo({ architecturalScopeCustomTitle: e.target.value })
+                              }
+                              placeholder="التصاميم المعمارية"
+                              className="w-full bg-white border border-stone-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-stone-900 focus:ring-2 focus:ring-amber-500 outline-hidden"
+                            />
+                          </div>
+
+                          {/* Free-form Editable Description Textarea */}
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <label className="block text-[11px] font-bold text-stone-700">
+                                نص وصف البند (زيادة / حذف / تعديل حر):
+                              </label>
+                              <span className="text-[10px] text-stone-400 font-medium">
+                                {currentArchitecturalDescription.length} حرف
+                              </span>
+                            </div>
+                            <textarea
+                              rows={4}
+                              value={currentArchitecturalDescription}
+                              onChange={(e) =>
+                                onUpdateClientInfo({
+                                  architecturalScopeCustomDescription: e.target.value,
+                                })
+                              }
+                              placeholder={def.description}
+                              className="w-full bg-stone-50 focus:bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs text-stone-900 leading-relaxed focus:ring-2 focus:ring-amber-500 outline-hidden resize-y transition"
+                            />
+                          </div>
+
+                          {/* Quick Add Custom Phrase */}
+                          <div>
+                            <label className="block text-[10.5px] font-bold text-stone-600 mb-1">
+                              إضافة سريعة إلى نهاية النص:
+                            </label>
+                            <div className="flex items-center gap-1.5">
+                              <input
+                                type="text"
+                                value={architecturalAdditionInput}
+                                onChange={(e) => setArchitecturalAdditionInput(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    handleAddArchitecturalCustomText();
+                                  }
+                                }}
+                                placeholder="اكتب إضافة جديدة (مثال: تصميم الملحق الخارجي والمسبح)..."
+                                className="flex-1 bg-white border border-stone-300 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-amber-500 outline-hidden"
+                              />
+                              <button
+                                type="button"
+                                onClick={handleAddArchitecturalCustomText}
+                                className="bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold px-2.5 py-1.5 rounded-lg text-xs flex items-center gap-1 shadow-2xs cursor-pointer shrink-0"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                                <span>إضافة</span>
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Quick-Add Chips */}
+                          <div>
+                            <label className="block text-[10.5px] font-bold text-stone-600 mb-1.5">
+                              عبارات جاهزة للإضافة بضغطة واحدة:
+                            </label>
+                            <div className="flex flex-wrap gap-1.5">
+                              {[
+                                'تصميم الحدائق واللاندسكيب',
+                                'تصميم الأسوار الخارجية والبوابات',
+                                'المناظير الخارجية ثلاثية الأبعاد (3D)',
+                                'جداول الأبواب والشبابيك والتشطيبات',
+                                'تفاصيل الملاحق الخارجية والمسبح',
+                                'دراسة توزيع الفرش والأثاث المعماري',
+                              ].map((chip) => (
+                                <button
+                                  key={chip}
+                                  type="button"
+                                  onClick={() => handleAppendArchitecturalPhrase(chip)}
+                                  className="text-[10.5px] font-bold bg-stone-50 hover:bg-amber-50 text-stone-700 hover:text-amber-950 border border-stone-300 hover:border-amber-400 px-2 py-1 rounded-md transition cursor-pointer"
+                                >
+                                  + {chip}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Quick Presets */}
+                          <div className="pt-2 border-t border-stone-200">
+                            <label className="block text-[10.5px] font-bold text-stone-600 mb-1.5">
+                              نماذج جاهزة سريعة للنص:
+                            </label>
+                            <div className="flex flex-wrap gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  onUpdateClientInfo({
+                                    architecturalScopeCustomTitle: 'التصاميم المعمارية',
+                                    architecturalScopeCustomDescription:
+                                      'إعداد المخططات الابتدائية، الموقع العام، المساقط الأفقية مع الفرش، ثم المخططات النهائية والتنفيذية والواجهات والقطاعات حسب نطاق المشروع.',
+                                  })
+                                }
+                                className="text-[10.5px] font-bold bg-amber-50 hover:bg-amber-100 text-stone-800 border border-amber-300 px-2 py-1 rounded-md transition cursor-pointer"
+                              >
+                                بدون 3D والأسوار
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  onUpdateClientInfo({
+                                    architecturalScopeCustomTitle: 'التصاميم المعمارية والواجهات',
+                                    architecturalScopeCustomDescription:
+                                      'إعداد المخططات الابتدائية والنهائية، المساقط الأفقية، تصميم الواجهات الخارجية، واللقطات والمناظير ثلاثية الأبعاد (3D) مع الأسوار الخارجية واللاندسكيب.',
+                                  })
+                                }
+                                className="text-[10.5px] font-bold bg-amber-50 hover:bg-amber-100 text-stone-800 border border-amber-300 px-2 py-1 rounded-md transition cursor-pointer"
+                              >
+                                شامل 3D واللاندسكيب
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  onUpdateClientInfo({
+                                    architecturalScopeCustomTitle: 'تطوير وتصميم الواجهات المعمارية',
+                                    architecturalScopeCustomDescription:
+                                      'إعداد تصميم الواجهات الخارجية والمناظير ثلاثية الأبعاد (3D) مع المخططات التنفيذية للواجهات والأسوار الخارجية.',
+                                  })
+                                }
+                                className="text-[10.5px] font-bold bg-amber-50 hover:bg-amber-100 text-stone-800 border border-amber-300 px-2 py-1 rounded-md transition cursor-pointer"
+                              >
+                                واجهات خارجية فقط
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  onUpdateClientInfo({
+                                    architecturalScopeCustomTitle: undefined,
+                                    architecturalScopeCustomDescription: undefined,
+                                  })
+                                }
+                                className="text-[10.5px] font-bold bg-stone-100 hover:bg-stone-200 text-stone-600 border border-stone-300 px-2 py-1 rounded-md transition cursor-pointer"
+                              >
+                                استعادة النص الافتراضي
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
                       {/* Supervision Dedicated Scope Editor */}
                       {def.id === 'supervision' && isChecked && (

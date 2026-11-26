@@ -143,10 +143,13 @@ export async function saveQuotationToCloud(quote: SavedQuotation): Promise<void>
   const path = `saved_quotations/${quote.id}`;
   try {
     const docRef = doc(db, 'saved_quotations', quote.id);
-    await setDoc(docRef, {
-      ...quote,
-      updatedAt: new Date().toISOString(),
-    });
+    const sanitizedPayload = JSON.parse(
+      JSON.stringify({
+        ...quote,
+        updatedAt: new Date().toISOString(),
+      })
+    );
+    await setDoc(docRef, sanitizedPayload);
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }

@@ -176,6 +176,11 @@ export interface ClientInfo {
 
   // العقد الذكي القابل للتعديل والمرفق مع عرض السعر
   contractData?: ContractData;
+
+  // حالة التعاقد مع العميل (تتبع داخلي للأرشيف)
+  isContracted?: boolean;
+  contractedAt?: string;
+  contractedBy?: string;
 }
 
 export type ContractTemplateKind =
@@ -282,4 +287,7 @@ export interface SavedQuotation {
   grandTotal: number;
   preparedBy?: string;
   isSequential?: boolean;
+  isContracted?: boolean;
+  contractedAt?: string;
+  contractedBy?: string;
 }

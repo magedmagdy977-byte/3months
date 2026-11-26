@@ -48,6 +48,20 @@
         "items": {
           "type": "array",
           "description": "Selected quotation engineering items"
+        },
+        "isContracted": {
+          "type": "boolean",
+          "description": "Whether the client approved and contracted on this quotation"
+        },
+        "contractedAt": {
+          "type": "string",
+          "description": "Date string when the quotation was marked as contracted",
+          "maxLength": 64
+        },
+        "contractedBy": {
+          "type": "string",
+          "description": "Engineer who marked the quotation as contracted",
+          "maxLength": 128
         }
       },
       "required": ["id", "quoteNumber", "createdAt", "grandTotal"]

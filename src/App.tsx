@@ -659,23 +659,27 @@ export default function App() {
     }
   };
 
-  const handleSaveQuotation = async (options?: { silent?: boolean }): Promise<SavedQuotation | null> => {
+  const handleSaveQuotation = async (options?: {
+    silent?: boolean;
+    clientInfoOverride?: ClientInfo;
+  }): Promise<SavedQuotation | null> => {
     if (cartItems.length === 0) return null;
     if (isSavingRef.current) return null;
     isSavingRef.current = true;
 
     try {
+      const activeInfo = options?.clientInfoOverride || clientInfo;
       const subtotal = cartItems.reduce((acc, item) => acc + item.totalPrice, 0);
       let discount = 0;
-      if (clientInfo.discountType === 'percentage') {
-        discount = Math.round((subtotal * (clientInfo.discountValue || 0)) / 100);
+      if (activeInfo.discountType === 'percentage') {
+        discount = Math.round((subtotal * (activeInfo.discountValue || 0)) / 100);
       } else {
-        discount = clientInfo.discountValue || 0;
+        discount = activeInfo.discountValue || 0;
       }
       discount = Math.min(discount, subtotal);
 
       const amountAfterDiscount = subtotal - discount;
-      const tax = clientInfo.includeTax ? Math.round(amountAfterDiscount * 0.15) : 0;
+      const tax = activeInfo.includeTax ? Math.round(amountAfterDiscount * 0.15) : 0;
       const grandTotal = amountAfterDiscount + tax;
 
       // Keep ID stable for repeated saves of the active draft session
@@ -684,27 +688,40 @@ export default function App() {
         setLoadedQuoteId(quoteId);
       }
 
-      const proposalNumberToSave = clientInfo.proposalNumber || generateQuoteNumber(false);
+      const existingSaved = savedQuotations.find((q) => q && q.id === quoteId);
+      const proposalNumberToSave = activeInfo.proposalNumber || generateQuoteNumber(false);
 
-      const resolvedCompany = resolveCompanyId(clientInfo.companyId || activeCompanyId);
+      const resolvedCompany = resolveCompanyId(activeInfo.companyId || activeCompanyId);
+      const resolvedContracted = Boolean(activeInfo.isContracted);
+      const resolvedContractedAt = resolvedContracted ? activeInfo.contractedAt || new Date().toLocaleDateString('ar-SA') : '';
+      const resolvedContractedBy = resolvedContracted
+        ? activeInfo.contractedBy || currentUser?.engineerName || activeInfo.preparedBy || ''
+        : '';
+
       const newSaved: SavedQuotation = {
         id: quoteId,
         companyId: resolvedCompany,
         quoteNumber: proposalNumberToSave,
-        createdAt: new Date().toLocaleDateString('ar-SA'),
+        createdAt: existingSaved?.createdAt || new Date().toLocaleDateString('ar-SA'),
         clientInfo: {
-          ...clientInfo,
+          ...activeInfo,
           companyId: resolvedCompany,
           proposalNumber: proposalNumberToSave,
-          preparedBy: currentUser?.engineerName || clientInfo.preparedBy,
+          preparedBy: currentUser?.engineerName || activeInfo.preparedBy,
+          isContracted: resolvedContracted,
+          contractedAt: resolvedContractedAt,
+          contractedBy: resolvedContractedBy,
         },
         items: [...cartItems],
         subtotal,
         discount,
         tax,
         grandTotal,
-        preparedBy: currentUser?.engineerName || clientInfo.preparedBy,
+        preparedBy: currentUser?.engineerName || activeInfo.preparedBy,
         isSequential: true,
+        isContracted: resolvedContracted,
+        contractedAt: resolvedContractedAt,
+        contractedBy: resolvedContractedBy,
       };
 
       // Permanently persist across all layers: Server Disk + IndexedDB + LocalStorage (primary & backup) + Cloud
@@ -722,6 +739,71 @@ export default function App() {
     } finally {
       isSavingRef.current = false;
     }
+  };
+
+  const handleToggleQuotationContracted = async (quote: SavedQuotation) => {
+    const currentlyContracted = Boolean(quote.isContracted ?? quote.clientInfo?.isContracted);
+    const nextContracted = !currentlyContracted;
+    const todayStr = new Date().toLocaleDateString('ar-SA');
+    const actor = currentUser?.engineerName || 'م.ماجد';
+
+    const updatedClientInfo: ClientInfo = {
+      ...quote.clientInfo,
+      isContracted: nextContracted,
+      contractedAt: nextContracted ? todayStr : '',
+      contractedBy: nextContracted ? actor : '',
+    };
+
+    const updatedQuote: SavedQuotation = {
+      ...quote,
+      isContracted: nextContracted,
+      contractedAt: nextContracted ? todayStr : '',
+      contractedBy: nextContracted ? actor : '',
+      clientInfo: updatedClientInfo,
+    };
+
+    const updatedList = await persistQuotationPermanently(updatedQuote, savedQuotations);
+    setSavedQuotations(updatedList);
+
+    if (loadedQuoteId === quote.id) {
+      setClientInfo((prev) => ({
+        ...prev,
+        isContracted: nextContracted,
+        contractedAt: nextContracted ? todayStr : '',
+        contractedBy: nextContracted ? actor : '',
+      }));
+    }
+
+    showToast(
+      nextContracted
+        ? `تم تأشير العرض رقم (${quote.quoteNumber}) كـ «تم التعاقد» بنجاح ✓`
+        : `تم إلغاء تأشير «تم التعاقد» عن العرض رقم (${quote.quoteNumber})`
+    );
+  };
+
+  const handleToggleActiveContracted = async () => {
+    const nextContracted = !Boolean(clientInfo.isContracted);
+    const todayStr = new Date().toLocaleDateString('ar-SA');
+    const actor = currentUser?.engineerName || 'م.ماجد';
+
+    const nextClientInfo: ClientInfo = {
+      ...clientInfo,
+      isContracted: nextContracted,
+      contractedAt: nextContracted ? todayStr : '',
+      contractedBy: nextContracted ? actor : '',
+    };
+
+    setClientInfo(nextClientInfo);
+
+    if (cartItems.length > 0) {
+      await handleSaveQuotation({ silent: true, clientInfoOverride: nextClientInfo });
+    }
+
+    showToast(
+      nextContracted
+        ? `تم تأشير العرض رقم (${nextClientInfo.proposalNumber}) كـ «تم التعاقد» وحفظه في الأرشيف ✓`
+        : `تم إلغاء تأشير «تم التعاقد» عن العرض رقم (${nextClientInfo.proposalNumber})`
+    );
   };
 
   const handlePrintAndPreview = async () => {
@@ -745,10 +827,17 @@ export default function App() {
 
   const handleLoadQuotation = (saved: SavedQuotation) => {
     const loadedCompanyId = resolveCompanyId(saved.companyId || saved.clientInfo?.companyId);
+    const loadedContracted = Boolean(saved.isContracted ?? saved.clientInfo?.isContracted);
     setActiveCompanyId(loadedCompanyId);
     saveActiveCompanyId(loadedCompanyId);
     setLoadedQuoteId(saved.id);
-    setClientInfo({ ...saved.clientInfo, companyId: loadedCompanyId });
+    setClientInfo({
+      ...saved.clientInfo,
+      companyId: loadedCompanyId,
+      isContracted: loadedContracted,
+      contractedAt: saved.contractedAt || saved.clientInfo?.contractedAt || '',
+      contractedBy: saved.contractedBy || saved.clientInfo?.contractedBy || '',
+    });
     setCartItems([...saved.items]);
     setIsHistoryOpen(false);
     setIsCartOpen(true);
@@ -872,6 +961,9 @@ export default function App() {
         cartItemCount={cartItems.length}
         cartTotal={cartTotal}
         savedCount={savedQuotations.length}
+        contractedCount={
+          savedQuotations.filter((q) => q && Boolean(q.isContracted ?? q.clientInfo?.isContracted)).length
+        }
         isCloudConnected={isCloudConnected}
         session={currentUser}
         onOpenSecurity={() => {
@@ -995,6 +1087,7 @@ export default function App() {
         onToggleSimplifiedMode={handleToggleSimplifiedMode}
         onOpenContractEditor={() => setIsContractEditorOpen(true)}
         onSelectCompany={handleSelectCompany}
+        onToggleContracted={handleToggleActiveContracted}
       />
 
       {/* Smart Contract Full Editor Modal */}
@@ -1037,6 +1130,7 @@ export default function App() {
         onLoadQuotation={handleLoadQuotation}
         onDeleteQuotation={handleDeleteQuotation}
         onDeleteMultipleQuotations={handleDeleteMultipleQuotations}
+        onToggleContracted={handleToggleQuotationContracted}
         isCloudConnected={isCloudConnected}
         isAdmin={Boolean(currentUser && isUserPrimaryAdmin(currentUser.engineerName))}
       />

@@ -71,6 +71,7 @@ interface QuotationDrawerProps {
   onToggleSimplifiedMode?: () => void;
   onOpenContractEditor?: () => void;
   onSelectCompany?: (companyId: CompanyId) => void;
+  onToggleContracted?: () => void;
 }
 
 export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
@@ -90,6 +91,7 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
   onToggleSimplifiedMode,
   onOpenContractEditor,
   onSelectCompany,
+  onToggleContracted,
 }) => {
   const activeCompanyId = resolveCompanyId(clientInfo.companyId);
   const company = getCompanyProfile(activeCompanyId);
@@ -656,6 +658,66 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
                 أرك (ARQ)
               </button>
             </div>
+          </div>
+
+          {/* Contracted Deal Status Toggle (Internal Office Tracking) */}
+          <div
+            className={`flex items-center justify-between gap-2 rounded-xl px-3 py-2 border transition ${
+              clientInfo.isContracted
+                ? 'bg-emerald-950/60 border-emerald-500/50'
+                : 'bg-stone-950/60 border-stone-800'
+            }`}
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <CheckCircle2
+                className={`w-4 h-4 shrink-0 ${
+                  clientInfo.isContracted ? 'text-emerald-400' : 'text-stone-500'
+                }`}
+              />
+              <div className="min-w-0">
+                <span className="text-[11px] font-black text-white block">
+                  {clientInfo.isContracted ? 'تم التعاقد على هذا العرض ✓' : 'حالة التعاقد مع العميل'}
+                </span>
+                <span className="text-[10px] text-stone-400 block truncate">
+                  {clientInfo.isContracted
+                    ? `تاريخ التعاقد: ${clientInfo.contractedAt || 'اليوم'}${
+                        clientInfo.contractedBy ? ` • بواسطة ${clientInfo.contractedBy}` : ''
+                      }`
+                    : 'أشّر على «تم التعاقد» عند موافقة العميل لتسجيله في سجل العقود بالأرشيف'}
+                </span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (onToggleContracted) {
+                  onToggleContracted();
+                } else {
+                  const next = !clientInfo.isContracted;
+                  onUpdateClientInfo({
+                    isContracted: next,
+                    contractedAt: next ? new Date().toLocaleDateString('ar-SA') : '',
+                  });
+                }
+              }}
+              className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-black transition cursor-pointer border ${
+                clientInfo.isContracted
+                  ? 'bg-emerald-500 hover:bg-emerald-400 text-stone-950 border-emerald-400 shadow-xs'
+                  : 'bg-stone-800 hover:bg-emerald-600/20 text-stone-200 hover:text-emerald-300 border-stone-700 hover:border-emerald-500/50'
+              }`}
+            >
+              <span
+                className={`w-3.5 h-3.5 rounded-xs flex items-center justify-center border ${
+                  clientInfo.isContracted
+                    ? 'bg-stone-950 border-stone-950 text-emerald-400'
+                    : 'bg-stone-900 border-stone-500 text-transparent'
+                }`}
+              >
+                <Check className="w-2.5 h-2.5 stroke-[3]" />
+              </span>
+              <span>{clientInfo.isContracted ? 'تم التعاقد' : 'تأشير: تم التعاقد'}</span>
+            </button>
           </div>
         </div>
 

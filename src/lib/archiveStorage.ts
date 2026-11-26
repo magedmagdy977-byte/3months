@@ -226,7 +226,8 @@ export async function persistQuotationPermanently(
   quote: SavedQuotation,
   currentList: SavedQuotation[]
 ): Promise<SavedQuotation[]> {
-  const updatedList = deduplicateQuotations([quote, ...currentList]);
+  const withoutExisting = currentList.filter((q) => q && q.id !== quote.id);
+  const updatedList = deduplicateQuotations([quote, ...withoutExisting]);
 
   // Immediate synchronous & local persistence
   writeToLocalStorage(updatedList);

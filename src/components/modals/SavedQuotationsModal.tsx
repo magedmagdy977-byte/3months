@@ -20,6 +20,8 @@ import {
   Square,
   Check,
   Building2,
+  BadgeCheck,
+  Clock,
 } from 'lucide-react';
 import { getAuthorizedUsersList } from '../../lib/security';
 import { downloadWordDocument } from '../../lib/wordExport';
@@ -31,6 +33,7 @@ interface SavedQuotationsModalProps {
   onLoadQuotation: (quote: SavedQuotation) => void;
   onDeleteQuotation: (id: string) => void;
   onDeleteMultipleQuotations?: (ids: string[]) => void;
+  onToggleContracted?: (quote: SavedQuotation) => void;
   isCloudConnected?: boolean;
   isAdmin?: boolean;
   onRefresh?: () => void;
@@ -43,12 +46,14 @@ export const SavedQuotationsModal: React.FC<SavedQuotationsModalProps> = ({
   onLoadQuotation,
   onDeleteQuotation,
   onDeleteMultipleQuotations,
+  onToggleContracted,
   isCloudConnected = true,
   isAdmin = false,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedEngineer, setSelectedEngineer] = useState<string>('all');
   const [selectedCompany, setSelectedCompany] = useState<'all' | CompanyId>('all');
+  const [selectedContractStatus, setSelectedContractStatus] = useState<'all' | 'contracted' | 'pending'>('all');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [showBatchConfirm, setShowBatchConfirm] = useState<boolean>(false);
   const [singleDeleteTarget, setSingleDeleteTarget] = useState<SavedQuotation | null>(null);
@@ -58,6 +63,9 @@ export const SavedQuotationsModal: React.FC<SavedQuotationsModalProps> = ({
   // Active authorized engineers list
   const authorizedStaff = getAuthorizedUsersList();
 
+  const isQuoteContracted = (q: SavedQuotation): boolean =>
+    Boolean(q?.isContracted ?? q?.clientInfo?.isContracted);
+
   const luminousCount = savedQuotations.filter(
     (q) => q && resolveCompanyId(q.companyId || q.clientInfo?.companyId) === 'luminous'
   ).length;
@@ -65,7 +73,8 @@ export const SavedQuotationsModal: React.FC<SavedQuotationsModalProps> = ({
     (q) => q && resolveCompanyId(q.companyId || q.clientInfo?.companyId) === 'arq'
   ).length;
 
-  const filteredQuotes = savedQuotations.filter((q) => {
+  // Base filtered list (company + engineer + search) used to compute contracted stats accurately
+  const baseFilteredQuotes = savedQuotations.filter((q) => {
     if (!q) return false;
     const engineerName = q.preparedBy || q.clientInfo?.preparedBy || 'م.ماجد';
     const quoteCompanyId = resolveCompanyId(q.companyId || q.clientInfo?.companyId);
@@ -95,6 +104,20 @@ export const SavedQuotationsModal: React.FC<SavedQuotationsModalProps> = ({
       companyProfile.shortNameEn.toLowerCase().includes(term) ||
       engineerName.toLowerCase().includes(term)
     );
+  });
+
+  const contractedInView = baseFilteredQuotes.filter(isQuoteContracted);
+  const pendingInViewCount = baseFilteredQuotes.length - contractedInView.length;
+  const contractedTotalAmount = contractedInView.reduce((sum, q) => sum + (q.grandTotal || 0), 0);
+  const conversionRate =
+    baseFilteredQuotes.length > 0
+      ? Math.round((contractedInView.length / baseFilteredQuotes.length) * 100)
+      : 0;
+
+  const filteredQuotes = baseFilteredQuotes.filter((q) => {
+    if (selectedContractStatus === 'contracted') return isQuoteContracted(q);
+    if (selectedContractStatus === 'pending') return !isQuoteContracted(q);
+    return true;
   });
 
   const filteredIds = filteredQuotes.map((q) => q.id);
@@ -311,6 +334,67 @@ export const SavedQuotationsModal: React.FC<SavedQuotationsModalProps> = ({
               );
             })}
           </div>
+
+          {/* Filter by Contract Status + Live Contracted Summary */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1.5 border-t border-stone-200/80">
+            <div className="flex items-center gap-1.5 overflow-x-auto text-xs">
+              <span className="text-[11px] font-black text-stone-500 shrink-0 ml-1 flex items-center gap-1">
+                <BadgeCheck className="w-3.5 h-3.5 text-emerald-600" />
+                <span>حالة التعاقد:</span>
+              </span>
+
+              <button
+                type="button"
+                onClick={() => setSelectedContractStatus('all')}
+                className={`px-3 py-1 rounded-lg font-bold text-xs transition shrink-0 whitespace-nowrap cursor-pointer ${
+                  selectedContractStatus === 'all'
+                    ? 'bg-stone-900 text-white shadow-xs'
+                    : 'bg-white hover:bg-stone-200 text-stone-700 border border-stone-200'
+                }`}
+              >
+                الكل ({baseFilteredQuotes.length})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedContractStatus('contracted')}
+                className={`px-3 py-1 rounded-lg font-bold text-xs transition shrink-0 whitespace-nowrap cursor-pointer flex items-center gap-1 ${
+                  selectedContractStatus === 'contracted'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200'
+                }`}
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>تم التعاقد ({contractedInView.length})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedContractStatus('pending')}
+                className={`px-3 py-1 rounded-lg font-bold text-xs transition shrink-0 whitespace-nowrap cursor-pointer flex items-center gap-1 ${
+                  selectedContractStatus === 'pending'
+                    ? 'bg-amber-600 text-white shadow-xs'
+                    : 'bg-white hover:bg-stone-200 text-stone-700 border border-stone-200'
+                }`}
+              >
+                <Clock className="w-3.5 h-3.5" />
+                <span>قيد المتابعة ({pendingInViewCount})</span>
+              </button>
+            </div>
+
+            {contractedInView.length > 0 && (
+              <div className="flex items-center gap-2 text-[11px] bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-lg shrink-0">
+                <span className="font-bold text-emerald-900">
+                  إجمالي التعاقدات:{' '}
+                  <strong className="font-black text-emerald-700">{formatSAR(contractedTotalAmount)}</strong>
+                </span>
+                <span className="text-emerald-300">|</span>
+                <span className="font-bold text-emerald-800">
+                  نسبة التعاقد: <strong>{conversionRate}%</strong>
+                </span>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Batch Selection Action Bar (Strictly for Eng. Maged / Admin) */}
@@ -384,13 +468,19 @@ export const SavedQuotationsModal: React.FC<SavedQuotationsModalProps> = ({
             <div className="bg-stone-50 border-2 border-dashed border-stone-200 rounded-2xl p-10 text-center space-y-2">
               <FileText className="w-8 h-8 text-stone-400 mx-auto" />
               <div className="text-xs font-bold text-stone-700">
-                {searchTerm || selectedEngineer !== 'all' || selectedCompany !== 'all'
+                {searchTerm ||
+                selectedEngineer !== 'all' ||
+                selectedCompany !== 'all' ||
+                selectedContractStatus !== 'all'
                   ? 'لا توجد عروض أسعار تطابق التصفية المحددة'
                   : 'لا توجد عروض أسعار محفوظة بالأرشيف'}
               </div>
               <p className="text-[11px] text-stone-500">
-                {searchTerm || selectedEngineer !== 'all' || selectedCompany !== 'all'
-                  ? 'جرّب إلغاء التصفية أو اختيار شركة/مهندس آخر لعرض الأعمال.'
+                {searchTerm ||
+                selectedEngineer !== 'all' ||
+                selectedCompany !== 'all' ||
+                selectedContractStatus !== 'all'
+                  ? 'جرّب إلغاء التصفية أو اختيار حالة تعاقد/شركة/مهندس آخر لعرض الأعمال.'
                   : 'عند إضافة البنود إلى سلة التسعير، اضغط "حفظ بالأرشيف" لحفظ العرض وتوثيقه باسم المهندس.'}
               </p>
             </div>
@@ -401,6 +491,9 @@ export const SavedQuotationsModal: React.FC<SavedQuotationsModalProps> = ({
               const quoteCompany = getCompanyProfile(quoteCompanyId);
               const isArqQuote = quoteCompanyId === 'arq';
               const isSelected = selectedIds.includes(q.id);
+              const contracted = isQuoteContracted(q);
+              const contractedDate = q.contractedAt || q.clientInfo?.contractedAt;
+              const contractedBy = q.contractedBy || q.clientInfo?.contractedBy;
 
               return (
                 <div
@@ -408,6 +501,8 @@ export const SavedQuotationsModal: React.FC<SavedQuotationsModalProps> = ({
                   className={`p-4 rounded-xl border transition flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
                     isSelected
                       ? 'bg-red-50/25 border-red-300 ring-2 ring-red-400/20 shadow-xs'
+                      : contracted
+                      ? 'bg-emerald-50/35 border-emerald-300 hover:border-emerald-500 shadow-2xs'
                       : 'bg-white border-stone-200 hover:border-amber-400/80 shadow-2xs'
                   }`}
                 >
@@ -468,6 +563,18 @@ export const SavedQuotationsModal: React.FC<SavedQuotationsModalProps> = ({
                           <Cloud className="w-2.5 h-2.5" />
                           سحابي
                         </span>
+
+                        {contracted && (
+                          <span className="text-[11px] font-black text-emerald-900 bg-emerald-100 border border-emerald-400 px-2 py-0.5 rounded-md flex items-center gap-1 shadow-2xs">
+                            <BadgeCheck className="w-3.5 h-3.5 text-emerald-700" />
+                            <span>تم التعاقد ✓</span>
+                            {contractedDate && (
+                              <span className="text-[10px] font-bold text-emerald-700">
+                                ({contractedDate})
+                              </span>
+                            )}
+                          </span>
+                        )}
                       </div>
 
                       <h4 className="text-sm font-black text-stone-900 flex items-center gap-1.5">
@@ -480,6 +587,11 @@ export const SavedQuotationsModal: React.FC<SavedQuotationsModalProps> = ({
 
                       <div className="text-[11px] text-stone-500">
                         عدد البنود: {q.items.length} بنود • المدينة: {q.clientInfo.projectCity || 'غير محدد'} • نوع الخدمة: {q.clientInfo.serviceType || 'تصميم'}
+                        {contracted && contractedBy && (
+                          <span className="text-emerald-700 font-bold">
+                            {' '}• تأشير التعاقد: {contractedBy}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -487,12 +599,36 @@ export const SavedQuotationsModal: React.FC<SavedQuotationsModalProps> = ({
                   <div className="flex items-center justify-between sm:justify-end gap-3 border-t sm:border-t-0 pt-2 sm:pt-0">
                     <div className="text-left">
                       <span className="text-[10px] text-stone-400 block">الإجمالي</span>
-                      <span className="text-base font-black text-amber-800">
+                      <span
+                        className={`text-base font-black ${
+                          contracted ? 'text-emerald-700' : 'text-amber-800'
+                        }`}
+                      >
                         {formatSAR(q.grandTotal)}
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                      {onToggleContracted && (
+                        <button
+                          type="button"
+                          onClick={() => onToggleContracted(q)}
+                          className={`font-bold px-2.5 py-1.5 rounded-lg text-xs flex items-center gap-1 transition shadow-xs cursor-pointer border ${
+                            contracted
+                              ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-700'
+                              : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border-emerald-300'
+                          }`}
+                          title={
+                            contracted
+                              ? 'تم التعاقد على هذا العرض — اضغط لإلغاء التأشير'
+                              : 'تأشير هذا العرض كـ «تم التعاقد مع العميل»'
+                          }
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>{contracted ? 'تم التعاقد ✓' : 'تم التعاقد؟'}</span>
+                        </button>
+                      )}
+
                       <button
                         type="button"
                         onClick={() => downloadWordDocument(q.clientInfo, q.items)}

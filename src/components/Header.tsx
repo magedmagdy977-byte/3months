@@ -29,6 +29,7 @@ interface HeaderProps {
   cartItemCount: number;
   cartTotal: number;
   savedCount?: number;
+  contractedCount?: number;
   isCloudConnected?: boolean;
   session?: UserSession | null;
   onOpenSecurity?: () => void;
@@ -53,6 +54,7 @@ export const Header: React.FC<HeaderProps> = ({
   cartItemCount,
   cartTotal,
   savedCount = 0,
+  contractedCount = 0,
   isCloudConnected = true,
   session,
   onOpenSecurity,
@@ -343,6 +345,14 @@ export const Header: React.FC<HeaderProps> = ({
             {savedCount > 0 && (
               <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] font-bold px-1.5 py-0.2 rounded-full">
                 {savedCount}
+              </span>
+            )}
+            {contractedCount > 0 && (
+              <span
+                className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-black px-1.5 py-0.2 rounded-full"
+                title={`العروض المتعاقد عليها: ${contractedCount}`}
+              >
+                ✓ {contractedCount}
               </span>
             )}
           </button>
